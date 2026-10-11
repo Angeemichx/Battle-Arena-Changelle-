@@ -1,0 +1,42 @@
+import json, os, threading
+from dataclasses import asdict
+from servidor.domain.jugador import Jugador
+
+
+class JsonRepository:
+    def __init__(self, path: str):
+        self.path = path
+        self.lock = threading.RLock()
+    #convierte a diccionario, si no existe manda {}
+    def _load(self) -> dict:
+        if not os.path.exists(self.path):
+            return {}
+        with open(self.path, encoding="utf-8") as f:
+            return json.load(f)
+    #Guarda el diccionario y crea la carpeta en caso de que no exista
+    def _save(self, data: dict):
+        folder = os.path.dirname(self.path)
+        if folder:
+            os.makedirs(folder, exist_ok=True)
+        tmp = self.path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        os.replace(tmp, self.path)
+    #Busca correo
+    def _email(self, email: str) -> Jugador | None:
+        with self.lock:
+            d = self._load().get(email)
+        return Jugador(email=email, **d) if d else None
+    #Revisa si ya existe un jugador con ese nombre
+    def user_exists(self, username: str) -> bool:
+        with self.lock:
+            return any(u["username"].lower() == username.lower()
+                       for u in self._load().values())
+    
+    def save(self, jugador: Jugador):
+        with self.lock:
+            data = self._load()
+            d = asdict(jugador)
+            d.pop("email")           
+            data[jugador.email] = d
+            self._save(data)

@@ -7,8 +7,8 @@ class Partida:
         self.id_partida= id_partida
         self.limite_puntos = limite_puntos
         self.jugadores = {}
-        self.activa: True
-        self.ganador: None 
+        self.activa = True
+        self.ganador = None 
 
     #Agregar un jugador solo si hay espacio (pueden haber maximo 2 en partida)
     def agregar_jugador (self, jugador:Jugador):

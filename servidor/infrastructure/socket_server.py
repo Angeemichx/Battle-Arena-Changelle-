@@ -38,27 +38,32 @@ class ServidorJuego:
     def _manejar_cliente(self, socket_cliente):
         id_jugador = None
         buffer = ""
+        aceptado = False
 
         try:
             #Asignar id para registrar al jugador
 
             with self.lock:
                 if len(self.clientes) >= 2:
-                    socket_cliente.sendall(json.dumps({"tipo": "error", "mensaje": "Partida llena"}).encode())
-                    socket_cliente.close()
-                    return
-
+                    mensaje_error = {"tipo": "error", "mensaje": "Partida llena"}
+                    datos = (json.dumps(mensaje_error)+"\n").encode("utf-8")
+                    try:
+                        socket_cliente.sendall(datos)
+                    except Exception:
+                        pass
+                    return 
+                
                 id_jugador = self.siguiente_id
                 self.siguiente_id += 1
                 self.clientes[id_jugador] = socket_cliente
 
                 jugador = Jugador(id_jugador=id_jugador, nombre=f"Jugador{id_jugador}")
                 self.partida.agregar_jugador(jugador)
+                aceptado = True
 
             #Confirmar la conexión con el cliente 
             
-            self._enviar_a(socket_cliente, {"tipo": "bienvenida",
-                "                           id_jugador": id_jugador,})
+            self._enviar_a(socket_cliente, {"tipo": "bienvenida","id_jugador": id_jugador,})
 
             #Avisar a todos los clientes el nuevo estado
 
@@ -84,15 +89,27 @@ class ServidorJuego:
         except Exception as e:
             print(f"[SERVIDOR] Error con cliente {id_jugador}: {e}")
         finally:
-            with self.lock:
-                if id_jugador in self.clientes:
-                    del self.clientes[id_jugador]
-                if id_jugador in self.partida.jugadores:
-                    del self.partida.jugadores[id_jugador]
+            if aceptado:
+                with self.lock:
+                    if id_jugador in self.clientes:
+                        del self.clientes[id_jugador]
+                    if id_jugador in self.partida.jugadores:
+                        del self.partida.jugadores[id_jugador]
 
-            socket_cliente.close()
-            print(f"[SERVIDOR] Cliente {id_jugador} desconectado")
-            self._broadcast(self.partida.estado_actual())
+                try:
+                    socket_cliente.close()
+
+                except Exception:
+                    pass
+                print(f"[SERVIDOR] Cliente {id_jugador} desconectado")
+                self._broadcast(self.partida.estado_actual())
+
+            else: 
+                try:
+                    socket_cliente.close()
+
+                except Exception:
+                    pass
 
     #Procesar mensaje JSON que se reciba de un cliente
 

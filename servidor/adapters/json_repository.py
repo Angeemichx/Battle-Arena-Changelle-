@@ -1,6 +1,6 @@
 import json, os, threading
 from dataclasses import asdict
-from servidor.domain.jugador import Jugador
+from servidor.domain.cuenta import Cuenta
 
 
 class JsonRepository:
@@ -23,20 +23,20 @@ class JsonRepository:
             json.dump(data, f, indent=2, ensure_ascii=False)
         os.replace(tmp, self.path)
     #Busca correo
-    def _email(self, email: str) -> Jugador | None:
+    def _email(self, email: str) -> Cuenta | None:
         with self.lock:
             d = self._load().get(email)
-        return Jugador(email=email, **d) if d else None
-    #Revisa si ya existe un jugador con ese nombre
+        return Cuenta(email=email, **d) if d else None
+    #Revisa si ya existe una cuenta con ese nombre
     def user_exists(self, username: str) -> bool:
         with self.lock:
             return any(u["username"].lower() == username.lower()
                        for u in self._load().values())
     
-    def save(self, jugador: Jugador):
+    def save(self, jugador: Cuenta):
         with self.lock:
             data = self._load()
             d = asdict(jugador)
             d.pop("email")           
             data[jugador.email] = d
-            self._save(data)
+            self._save(data) 

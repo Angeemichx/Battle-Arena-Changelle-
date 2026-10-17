@@ -1,0 +1,12 @@
+{
+  "prueba@correo.com": {
+    "username": "prueba",
+    "password_hash": "xxx",
+    "verified": false,
+    "verify_code": null,
+    "verify_expires": null,
+    "reset_code": null,
+    "reset_expires": null,
+    "created_at": ""
+  }
+}

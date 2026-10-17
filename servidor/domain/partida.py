@@ -1,4 +1,4 @@
-from domain.jugador import Jugador 
+from servidor.domain.jugador import Jugador 
 
 #Creacion de la clase para definir los metodos de las partidas como jugadores y estado
 

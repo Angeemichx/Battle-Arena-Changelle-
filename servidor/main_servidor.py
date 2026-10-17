@@ -1,9 +1,9 @@
 import os
 from pathlib import Path
 
-from servidor.adapters.json_repository import JsonRepository
-from servidor.use_cases.auth_service import AuthService
-from servidor.infraestructure.socket_server import ServidorJuego
+from Servidor.adapters.json_repository import JsonRepository
+from Servidor.use_cases.auth_service import AuthService
+from Servidor.infraestructure.socket_server import ServidorJuego
 
 
 BASE = Path(__file__).resolve().parent

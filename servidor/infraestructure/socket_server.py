@@ -1,8 +1,8 @@
 import socket
 import threading
 import json
-from servidor.domain.jugador import Jugador
-from servidor.domain.partida import Partida 
+from Servidor.domain.jugador import Jugador
+from Servidor.domain.partida import Partida
 
 HOST = "0.0.0.0"
 PUERTO = 5555

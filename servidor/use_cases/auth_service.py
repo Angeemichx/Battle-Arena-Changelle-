@@ -3,7 +3,7 @@ import secrets
 import bcrypt
 from datetime import datetime, timedelta
 
-from servidor.domain.cuenta import Cuenta
+from Servidor.domain.cuenta import Cuenta
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 

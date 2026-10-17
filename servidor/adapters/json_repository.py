@@ -1,6 +1,6 @@
 import json, os, threading
 from dataclasses import asdict
-from servidor.domain.cuenta import Cuenta
+from Servidor.domain.cuenta import Cuenta
 
 
 class JsonRepository:

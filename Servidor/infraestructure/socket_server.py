@@ -124,6 +124,12 @@ class ServidorJuego:
         tipo = mensaje.get("tipo")
         accion = mensaje.get("action")
 
+        if tipo == "configurar_partida":
+            minutos = mensaje.get("minutos", 5)
+            self.partida.iniciar_cronometro(minutos)
+            print (f"[SERVIDOR] Partida configurada para {minutos} minutos.")
+            self._broadcast(self.partida.estado_actual())
+            
         if tipo == "movimiento":
             dx = mensaje.get("dx", 0)
             dy = mensaje.get("dy", 0)

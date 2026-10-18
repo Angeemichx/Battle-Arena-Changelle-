@@ -1,10 +1,12 @@
 """
-Vista de la Arena de Batalla en Pygame (US-07 y US-14).
-- Mapa amplio de 2000x1400 px con camara centrada en el jugador local (Camera Follow).
+Vista de la Arena de Batalla en Pygame (US-07, US-14, US-15).
+- Mapa amplio de 3600x2600 px pensado para 4 jugadores y guardianes, con camara centrada (Camera Follow).
 - Se adapta dinamicamente al tamano de la ventana del computador.
-- Reactor Central en (1000, 700) y 4 plataformas de Spawn (Norte, Sur, Oeste, Este).
-- Feedback funcional e inequivoco del 5to boton de accion (circulo del color de la hitbox + [EXTRAYENDO]).
-- Reutiliza InputManager del Integrante 2 (Cliente/Inputs/gamepad_manager.py).
+- Reactor Central en (1800, 1300) y 4 plataformas de Spawn (Norte, Sur, Oeste, Este).
+- Sistema de puntuacion por segundos:
+  * Contador de segundos en movimiento: cada 1 segundo en movimiento multiplica por 10 (+10 pts/seg).
+  * Contador de segundos extrayendo en el Reactor: cada 1 segundo extrayendo suma 40 (+40 pts/seg).
+- Feedback funcional del 5to boton de accion (aro del color de la hitbox + [EXTRAYENDO]).
 """
 from __future__ import annotations
 import os
@@ -41,8 +43,9 @@ def _cargar_imagen_avatar(ruta: str | None) -> pygame.Surface | None:
 
 def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None):
     """
-    Ejecuta el bucle principal de la Arena en Pygame con camara dinamica,
-    colisiones de muros, Reactor Central y accion fisica del 5to boton.
+    Ejecuta el bucle principal de la Arena en Pygame (mapa 3600x2600 px) con camara dinamica,
+    colisiones de muros, Reactor Central y puntuacion exacta por segundo en movimiento (x10)
+    y segundo de extraccion en el Reactor (x40).
     """
     pygame.init()
 
@@ -55,13 +58,13 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None):
         os.environ["SDL_VIDEO_CENTERED"] = "1"
         screen = pygame.display.set_mode((win_w, win_h), pygame.RESIZABLE)
 
-    pygame.display.set_caption(f"Battle Arena Challenge - Arena ({controller.mapa_seleccionado})")
+    pygame.display.set_caption(f"Battle Arena Challenge - Arena 3600x2600 ({controller.mapa_seleccionado})")
     clock = pygame.time.Clock()
 
     # Reutilizar InputManager del Integrante 2
     input_manager = create_default_input_manager(allow_keyboard_fallback=True)
 
-    # Lienzo completo del mundo (2000 x 1400 px)
+    # Lienzo completo del mundo (3600 x 2600 px)
     world_surface = pygame.Surface((WORLD_WIDTH, WORLD_HEIGHT))
     limites_mundo = pygame.Rect(0, 0, WORLD_WIDTH, WORLD_HEIGHT)
 
@@ -69,7 +72,6 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None):
     reactor_rect = obtener_hitbox_reactor()
     obstaculos_totales = muros_arena + [reactor_rect]
 
-    # Preparar jugadores y ubicarlos en los 4 Spawn Pads (Norte, Sur, Oeste, Este)
     jugadores_base = getattr(controller, "jugadores_sala", None)
     if not jugadores_base or len(jugadores_base) < 2:
         jugadores_base = [
@@ -93,7 +95,7 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None):
 
     jugadores = []
     for idx, j in enumerate(jugadores_base[:4]):
-        spx, spy = SPAWN_POINTS.get(idx, (1000, 200))
+        spx, spy = SPAWN_POINTS.get(idx, (1800, 260))
         rect_j = pygame.Rect(spx - 24, spy - 24, 48, 48)
         jugadores.append({
             "id": j.get("id", idx + 1),
@@ -102,7 +104,11 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None):
             "color": j.get("color", "#E63946"),
             "es_local": j.get("es_local", idx == 0),
             "rect": rect_j,
-            "puntos": float(j.get("puntos", 0)),
+            "segundos_movimiento": 0,
+            "acum_mov": 0.0,
+            "segundos_reactor": 0,
+            "acum_reactor": 0.0,
+            "puntos": 0,
             "extrayendo": False,
         })
 
@@ -111,7 +117,7 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None):
 
     # Temporizador de 5 minutos (300 segundos) - CA-09.9
     tiempo_restante = 300.0
-    velocidad_jugador = 6.0
+    velocidad_jugador = 7.0
 
     font_nombre = pygame.font.SysFont("Segoe UI", 14, bold=True)
     font_accion = pygame.font.SysFont("Segoe UI", 13, bold=True)
@@ -127,7 +133,7 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None):
         w, h = screen.get_size()
 
         # =====================================================================
-        # 1. ENTRADA DEL JUGADOR Y ACCION FISICA DEL 5TO BOTON (US-14)
+        # 1. ENTRADA DEL JUGADOR Y CONTADORES DE SEGUNDOS (MOVIMIENTO x10 / REACTOR x40)
         # =====================================================================
         comandos = input_manager.poll()
         accion_activa = Command.ACTION in comandos
@@ -136,6 +142,7 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None):
         if not accion_activa:
             dx_unit, dy_unit = direction_from(comandos)
             if dx_unit != 0 or dy_unit != 0:
+                pos_previa = jugador_local["rect"].topleft
                 jugador_local["rect"] = mover_con_colisiones(
                     jugador_local["rect"],
                     dx_unit * velocidad_jugador,
@@ -143,42 +150,78 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None):
                     obstaculos_totales,
                     limites_mundo,
                 )
+                # Si el jugador se desplazo efectivamente, contar el tiempo en movimiento
+                if jugador_local["rect"].topleft != pos_previa:
+                    jugador_local["acum_mov"] += dt
+                    while jugador_local["acum_mov"] >= 1.0:
+                        jugador_local["acum_mov"] -= 1.0
+                        jugador_local["segundos_movimiento"] += 1
+                        jugador_local["puntos"] = (
+                            jugador_local["segundos_movimiento"] * 10
+                            + jugador_local["segundos_reactor"] * 40
+                        )
+                    controller.enviar_movimiento_red(dx_unit, dy_unit)
         else:
-            # Si mantiene presionado el 5to boton de accion cerca del Reactor, suma puntos
+            controller.enviar_accion_red("[EXTRAYENDO]")
+            # Si mantiene presionado el 5to boton dentro de la zona del Reactor, suma 40 pts por cada segundo
             if esta_en_zona_extraccion(jugador_local["rect"]):
-                jugador_local["puntos"] += 10.0 * dt
+                jugador_local["acum_reactor"] += dt
+                while jugador_local["acum_reactor"] >= 1.0:
+                    jugador_local["acum_reactor"] -= 1.0
+                    jugador_local["segundos_reactor"] += 1
+                    jugador_local["puntos"] = (
+                        jugador_local["segundos_movimiento"] * 10
+                        + jugador_local["segundos_reactor"] * 40
+                    )
+
+        # Sincronizar posiciones/acciones de otros jugadores si el servidor TCP esta activo
+        if getattr(controller, "estado_partida_red", None):
+            import time
+            ahora = time.time()
+            with controller.estado_red_lock:
+                remotos = controller.estado_partida_red.get("jugadores", [])
+                for idx_r, datos_r in enumerate(remotos):
+                    if idx_r < len(jugadores) and not jugadores[idx_r]["es_local"]:
+                        jugadores[idx_r]["nombre"] = datos_r.get("nombre", jugadores[idx_r]["nombre"])
+                        jugadores[idx_r]["puntos"] = int(datos_r.get("puntaje", jugadores[idx_r]["puntos"]))
+                        rx_rem = datos_r.get("x")
+                        ry_rem = datos_r.get("y")
+                        if rx_rem is not None and ry_rem is not None and (rx_rem != 0 or ry_rem != 0):
+                            jugadores[idx_r]["rect"].topleft = (int(rx_rem), int(ry_rem))
+                        id_rem = int(datos_r.get("id", idx_r + 1))
+                        jugadores[idx_r]["extrayendo"] = controller.acciones_remotas.get(id_rem, 0) > ahora
 
         # =====================================================================
-        # 2. RENDERIZADO DEL LIENZO DEL MUNDO (2000 x 1400 px)
+        # 2. RENDERIZADO DEL LIENZO DEL MUNDO (3600 x 2600 px)
         # =====================================================================
         world_surface.fill((20, 24, 33))
 
         # Cuadricula de piso de la Estacion Espacial
-        for gx in range(0, WORLD_WIDTH, 100):
+        for gx in range(0, WORLD_WIDTH, 120):
             pygame.draw.line(world_surface, (28, 33, 45), (gx, 0), (gx, WORLD_HEIGHT), 1)
-        for gy in range(0, WORLD_HEIGHT, 100):
+        for gy in range(0, WORLD_HEIGHT, 120):
             pygame.draw.line(world_surface, (28, 33, 45), (0, gy), (WORLD_WIDTH, gy), 1)
 
         # Dibujar 4 Plataformas de Spawn (Norte, Sur, Oeste, Este - CA-07.4)
         nombres_spawns = {0: "SPAWN NORTE", 1: "SPAWN SUR", 2: "SPAWN OESTE", 3: "SPAWN ESTE"}
         for idx, (spx, spy) in SPAWN_POINTS.items():
-            pygame.draw.circle(world_surface, (30, 65, 65), (spx, spy), 58)
-            pygame.draw.circle(world_surface, (42, 157, 143), (spx, spy), 58, 3)
-            pygame.draw.circle(world_surface, (25, 45, 50), (spx, spy), 36)
+            pygame.draw.circle(world_surface, (30, 65, 65), (spx, spy), 68)
+            pygame.draw.circle(world_surface, (42, 157, 143), (spx, spy), 68, 3)
+            pygame.draw.circle(world_surface, (25, 45, 50), (spx, spy), 42)
             lbl_sp = font_accion.render(nombres_spawns[idx], True, (170, 220, 210))
-            world_surface.blit(lbl_sp, (spx - lbl_sp.get_width() // 2, spy + 64))
+            world_surface.blit(lbl_sp, (spx - lbl_sp.get_width() // 2, spy + 74))
 
-        # Dibujar Zona de Extraccion y Reactor Central en (1000, 700) - CA-07.3 y CA-07.5
+        # Dibujar Zona de Extraccion y Reactor Central en (1800, 1300) - CA-07.3 y CA-07.5
         rx, ry = REACTOR_CENTER
         pygame.draw.circle(world_surface, (20, 50, 68), (rx, ry), REACTOR_EXTRACTION_RADIUS)
-        pygame.draw.circle(world_surface, (0, 180, 216), (rx, ry), REACTOR_EXTRACTION_RADIUS, 2)
+        pygame.draw.circle(world_surface, (0, 180, 216), (rx, ry), REACTOR_EXTRACTION_RADIUS, 3)
 
         # Nucleo solido del Reactor Central
         pygame.draw.circle(world_surface, (0, 119, 182), (rx, ry), REACTOR_COLLISION_RADIUS)
         pygame.draw.circle(world_surface, (0, 235, 255), (rx, ry), REACTOR_COLLISION_RADIUS, 4)
-        pygame.draw.circle(world_surface, (180, 248, 255), (rx, ry), 38)
+        pygame.draw.circle(world_surface, (180, 248, 255), (rx, ry), 46)
 
-        lbl_reac = font_reactor.render("REACTOR CENTRAL", True, (255, 255, 255))
+        lbl_reac = font_reactor.render("REACTOR CENTRAL (+40 PTS/SEG)", True, (255, 255, 255))
         world_surface.blit(lbl_reac, (rx - lbl_reac.get_width() // 2, ry - lbl_reac.get_height() // 2))
 
         # Dibujar Muros y Pasillos de la Estacion
@@ -191,13 +234,12 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None):
             j_rect = jug["rect"]
             color_rgb = hex_to_rgb(jug["color"])
 
-            # Si el jugador tiene activa la accion (5to boton), dibujar aro notorio de su color
             if jug["extrayendo"]:
-                pygame.draw.circle(world_surface, color_rgb, j_rect.center, 46, 5)
-                pygame.draw.circle(world_surface, (255, 255, 255), j_rect.center, 50, 2)
+                pygame.draw.circle(world_surface, color_rgb, j_rect.center, 48, 5)
+                pygame.draw.circle(world_surface, (255, 255, 255), j_rect.center, 52, 2)
 
                 en_reactor = esta_en_zona_extraccion(j_rect)
-                txt_estado = "[EXTRAYENDO ENERGIA]" if en_reactor else "[ACCION ACTIVA]"
+                txt_estado = "[EXTRAYENDO +40 PTS/S]" if en_reactor else "[ACCION ACTIVA]"
                 lbl_ext = font_accion.render(txt_estado, True, color_rgb)
                 bg_ext = pygame.Rect(
                     j_rect.centerx - lbl_ext.get_width() // 2 - 6,
@@ -209,7 +251,6 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None):
                 pygame.draw.rect(world_surface, color_rgb, bg_ext, 1, border_radius=4)
                 world_surface.blit(lbl_ext, (bg_ext.x + 6, bg_ext.y + 2))
 
-            # Hitbox de 48x48 px o imagen cargada
             if jug["es_local"] and avatar_img_surface is not None:
                 scaled_av = pygame.transform.smoothscale(avatar_img_surface, (j_rect.width, j_rect.height))
                 world_surface.blit(scaled_av, j_rect)
@@ -233,7 +274,6 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None):
         offset_x = max(0, min(jugador_local["rect"].centerx - w // 2, max_off_x))
         offset_y = max(0, min(jugador_local["rect"].centery - h // 2, max_off_y))
 
-        # Si el monitor es mas grande que el mapa en algun eje, centrar el lienzo
         dest_x = max(0, (w - WORLD_WIDTH) // 2)
         dest_y = max(0, (h - WORLD_HEIGHT) // 2)
         view_w = min(w, WORLD_WIDTH)
@@ -256,18 +296,23 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None):
             avatar_img_surface,
         )
 
-        # Guia rapida de controles en la parte inferior izquierda
+        # Panel inferior izquierdo con el desglose en vivo de los segundos y puntos
         sx = w / 1280.0
         sy = h / 720.0
-        font_guia = pygame.font.SysFont("Segoe UI", max(11, int(13 * sy)))
-        lbl_guia = font_guia.render(
-            "Controles: WASD / Flechas / Mando para mover | ESPACIO (5to Boton) para Extraer en el Reactor",
-            True,
-            (185, 195, 210),
+        font_guia = pygame.font.SysFont("Segoe UI", max(11, int(13 * sy)), bold=True)
+        seg_mov = jugador_local["segundos_movimiento"]
+        seg_reac = jugador_local["segundos_reactor"]
+        pts_tot = jugador_local["puntos"]
+        texto_contador = (
+            f"Tiempo Movimiento: {seg_mov}s (x10 = {seg_mov * 10} pts)  |  "
+            f"Tiempo Reactor: {seg_reac}s (x40 = {seg_reac * 40} pts)  |  "
+            f"TOTAL: {pts_tot} pts"
         )
-        guia_bg = pygame.Rect(int(16 * sx), h - int(40 * sy), lbl_guia.get_width() + 20, int(28 * sy))
+        lbl_guia = font_guia.render(texto_contador, True, (233, 196, 106))
+        guia_bg = pygame.Rect(int(16 * sx), h - int(44 * sy), lbl_guia.get_width() + 24, int(32 * sy))
         pygame.draw.rect(screen, (20, 24, 34), guia_bg, border_radius=6)
-        screen.blit(lbl_guia, (guia_bg.x + 10, guia_bg.centery - lbl_guia.get_height() // 2))
+        pygame.draw.rect(screen, (74, 144, 226), guia_bg, 1, border_radius=6)
+        screen.blit(lbl_guia, (guia_bg.x + 12, guia_bg.centery - lbl_guia.get_height() // 2))
 
         # =====================================================================
         # 5. EVENTOS DE VENTANA

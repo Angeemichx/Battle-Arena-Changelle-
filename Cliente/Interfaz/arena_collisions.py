@@ -1,34 +1,34 @@
 """
 Definicion y exportacion de colisiones (pygame.Rect) para el Lobby y la Arena.
 Cumple con US-07 (CA-07.3, CA-07.4, CA-07.6).
-Disenado para que tanto la vista como el Integrante 2 puedan consumirlo.
+Mapa ampliado a 3600x2600 px para soportar comodamente 4 jugadores y guardianes.
 """
 from __future__ import annotations
 import math
 import pygame
 
-# Dimensiones del mundo de la Arena (US-07)
-WORLD_WIDTH = 2000
-WORLD_HEIGHT = 1400
+# Dimensiones amplias del mundo de la Arena (3600 x 2600 px)
+WORLD_WIDTH = 3600
+WORLD_HEIGHT = 2600
 
-# Posicion y radios del Reactor Central (Seccion 5.2 de la guia)
-REACTOR_CENTER = (1000, 700)
-REACTOR_COLLISION_RADIUS = 90
-REACTOR_EXTRACTION_RADIUS = 155
+# Posicion y radios del Reactor Central en el centro exacto del mapa
+REACTOR_CENTER = (1800, 1300)
+REACTOR_COLLISION_RADIUS = 110
+REACTOR_EXTRACTION_RADIUS = 210
 
 # 4 Plataformas de inicio (Spawn Pads) - Norte, Sur, Oeste, Este
 SPAWN_POINTS = {
-    0: (1000, 200),   # Norte
-    1: (1000, 1200),  # Sur
-    2: (250, 700),    # Oeste
-    3: (1750, 700),   # Este
+    0: (1800, 260),   # Norte
+    1: (1800, 2340),  # Sur
+    2: (300, 1300),   # Oeste
+    3: (3300, 1300),  # Este
 }
 
 
 def obtener_colisiones_lobby(zona_caminable: pygame.Rect) -> dict[str, list[pygame.Rect] | pygame.Rect]:
     """
-    Genera los muros perimetrales y la mesa central del Lobby caminable
-    adaptandose dinamicamente al rectangulo de la zona caminable en pantalla.
+    Genera los muros perimetrales, la mesa central interactiva y la plataforma
+    de inicio de partida del Lobby caminable adaptandose a la pantalla.
     """
     grosor = max(12, int(zona_caminable.width * 0.02))
     x, y, w, h = zona_caminable.x, zona_caminable.y, zona_caminable.width, zona_caminable.height
@@ -47,61 +47,81 @@ def obtener_colisiones_lobby(zona_caminable: pygame.Rect) -> dict[str, list[pyga
     mesa_y = y + (h - mesa_h) // 2
     mesa_rect = pygame.Rect(mesa_x, mesa_y, mesa_w, mesa_h)
 
-    # Zona de interaccion un poco mas amplia alrededor de la mesa
-    margen_interaccion = max(28, int(min(w, h) * 0.07))
+    # Zona de interaccion alrededor de la mesa (para activar con boton de accion del mando o E)
+    margen_interaccion = max(32, int(min(w, h) * 0.08))
     zona_interaccion = mesa_rect.inflate(margen_interaccion * 2, margen_interaccion * 2)
+
+    # Plataforma caminable de Despegue (para poder iniciar partida tambien con el mando)
+    pad_w = int(w * 0.22)
+    pad_h = int(h * 0.14)
+    zona_despegue = pygame.Rect(
+        x + w - pad_w - grosor - int(w * 0.03),
+        y + (h - pad_h) // 2,
+        pad_w,
+        pad_h,
+    )
 
     return {
         "muros": muros + [mesa_rect],
         "bordes": muros,
         "mesa": mesa_rect,
         "zona_interaccion": zona_interaccion,
+        "zona_despegue": zona_despegue,
     }
 
 
 def obtener_muros_arena(tipo_mapa: str = "Estacion Estandar") -> list[pygame.Rect]:
     """
     Exporta la lista de pygame.Rect que representan los muros exteriores
-    y los bloques de pasillos internos de la Arena de 2000x1400 px.
-    Deja corredores amplios hacia los 4 spawns (Norte, Sur, Oeste, Este)
-    y el salon central del Reactor.
+    y los bloques de salas/pasillos internos de la Arena de 3600x2600 px.
+    Disenado con corredores amplios para 4 jugadores y patrullaje de guardianes.
     """
-    grosor_borde = 40
+    grosor_borde = 50
     muros = [
-        # Limites exteriores del mapa 2000x1400
+        # Limites exteriores de la estacion (3600 x 2600)
         pygame.Rect(0, 0, WORLD_WIDTH, grosor_borde),
         pygame.Rect(0, WORLD_HEIGHT - grosor_borde, WORLD_WIDTH, grosor_borde),
         pygame.Rect(0, 0, grosor_borde, WORLD_HEIGHT),
         pygame.Rect(WORLD_WIDTH - grosor_borde, 0, grosor_borde, WORLD_HEIGHT),
 
-        # 4 Grandes bloques estructurales en los cuadrantes (crean los pasillos en cruz y anillo)
-        # Cuadrante Noroeste
-        pygame.Rect(380, 220, 420, 300),
-        # Cuadrante Noreste
-        pygame.Rect(1200, 220, 420, 300),
-        # Cuadrante Suroeste
-        pygame.Rect(380, 880, 420, 300),
-        # Cuadrante Sureste
-        pygame.Rect(1200, 880, 420, 300),
+        # Bloques estructurales Noroeste (dejan corredor perimetral y corredor hacia el centro)
+        pygame.Rect(520, 380, 480, 340),
+        pygame.Rect(1140, 380, 360, 480),
+        pygame.Rect(520, 860, 480, 220),
+
+        # Bloques estructurales Noreste
+        pygame.Rect(2100, 380, 360, 480),
+        pygame.Rect(2600, 380, 480, 340),
+        pygame.Rect(2600, 860, 480, 220),
+
+        # Bloques estructurales Suroeste
+        pygame.Rect(520, 1520, 480, 220),
+        pygame.Rect(520, 1880, 480, 340),
+        pygame.Rect(1140, 1740, 360, 480),
+
+        # Bloques estructurales Sureste
+        pygame.Rect(2100, 1740, 360, 480),
+        pygame.Rect(2600, 1520, 480, 220),
+        pygame.Rect(2600, 1880, 480, 340),
     ]
 
     if tipo_mapa == "Reactor Inestable":
-        # Pilares adicionales alrededor del salon central
+        # 4 Pilares de contencion diagonales alrededor del salon del Reactor Central
         muros.extend([
-            pygame.Rect(830, 520, 60, 60),
-            pygame.Rect(1110, 520, 60, 60),
-            pygame.Rect(830, 820, 60, 60),
-            pygame.Rect(1110, 820, 60, 60),
+            pygame.Rect(1420, 960, 110, 110),
+            pygame.Rect(2070, 960, 110, 110),
+            pygame.Rect(1420, 1530, 110, 110),
+            pygame.Rect(2070, 1530, 110, 110),
         ])
     elif tipo_mapa == "Laberinto Cerrado":
-        # Barreras parciales en los corredores laterales
+        # Esclusas y divisores adicionales en los pasillos principales para cubrirse de guardianes
         muros.extend([
-            pygame.Rect(180, 420, 120, 50),
-            pygame.Rect(180, 930, 120, 50),
-            pygame.Rect(1700, 420, 120, 50),
-            pygame.Rect(1700, 930, 120, 50),
-            pygame.Rect(960, 360, 80, 45),
-            pygame.Rect(960, 995, 80, 45),
+            pygame.Rect(1720, 620, 160, 70),
+            pygame.Rect(1720, 1910, 160, 70),
+            pygame.Rect(820, 1250, 70, 140),
+            pygame.Rect(2710, 1250, 70, 140),
+            pygame.Rect(1360, 1120, 70, 120),
+            pygame.Rect(2170, 1360, 70, 120),
         ])
 
     return muros

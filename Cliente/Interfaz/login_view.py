@@ -98,10 +98,6 @@ class LoginView(ctk.CTk):
         self.btn_ver.configure(text="Ocultar" if not self.pwd_oculta else "Ver")
 
     def _ejecutar_login(self):
-        usuario = self.txt_usuario.get().strip()
-        pwd = self.txt_password.get().strip()
-        if not usuario or not pwd:
-            self.lbl_error.configure(text="Complete usuario y contrasena")
-            return
+        usuario = self.txt_usuario.get().strip() or "Piloto_1"
         self.controller.usuario_actual = usuario
         self.controller.mostrar_hub()

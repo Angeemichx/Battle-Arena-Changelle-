@@ -2,6 +2,41 @@
 Constantes de color, estilos y adaptacion de dimensiones de pantalla
 para la interfaz grafica. Enfoque limpio y funcional (esqueleto).
 """
+import customtkinter as _ctk
+
+# Parche seguro para CTkButton: previene errores "invalid command name ..._click_animation"
+# cuando un boton destruye la ventana o cambia de pantalla antes de completar su animacion (100ms).
+if hasattr(_ctk, "CTkButton") and not getattr(_ctk.CTkButton, "_battle_arena_patched", False):
+    _orig_btn_on_release = _ctk.CTkButton._on_release
+    _orig_btn_destroy = _ctk.CTkButton.destroy
+
+    def _safe_btn_on_release(self, event=None):
+        if self._mouse_inside and self._state != "disabled":
+            self._on_leave()
+            if self._command is not None:
+                self._command()
+            try:
+                if self.winfo_exists():
+                    self._click_animation_running = True
+                    self._click_anim_id = self.after(100, self._click_animation)
+            except Exception:
+                pass
+
+    def _safe_btn_destroy(self):
+        anim_id = getattr(self, "_click_anim_id", None)
+        if anim_id is not None:
+            try:
+                self.after_cancel(anim_id)
+            except Exception:
+                pass
+            self._click_anim_id = None
+        self._click_animation_running = False
+        _orig_btn_destroy(self)
+
+    _ctk.CTkButton._on_release = _safe_btn_on_release
+    _ctk.CTkButton.destroy = _safe_btn_destroy
+    _ctk.CTkButton._battle_arena_patched = True
+
 
 # Paleta base de colores de interfaz administrativa
 COLOR_FONDO = "#181A20"

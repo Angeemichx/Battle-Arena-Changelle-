@@ -1,12 +1,11 @@
 """
 Vista del Lobby Caminable en Pygame (US-09 y US-06).
 - Se adapta dinamicamente a las dimensiones de la pantalla del computador.
-- Soporta navegacion completa tanto con Raton como con Mando (Gamepad / Teclado):
-  * Al acercarse a la Mesa Central y presionar el boton de Accion del mando (Command.ACTION / Espacio / E),
-    abre la ventana modal superpuesta.
-  * Dentro de la ventana modal, permite desplazarse con el mando (Arriba, Abajo, Izquierda, Derecha)
-    entre Pestañas, Colores, Mapas, Volumen y el boton LISTO, seleccionando con Command.ACTION.
-  * Tambien incluye una Plataforma de Despegue caminable para iniciar la partida con Command.ACTION.
+- Toda la interaccion del Lobby se realiza mediante zonas caminables para Mando (Gamepad / Teclado):
+  1) Centro (Mesa de Comando): Abre el modal de Colores, Tipos de Mapa y Musica con Command.ACTION.
+  2) Derecha (Zona de Despegue): Inicia la partida hacia la Arena con Command.ACTION.
+  3) Izquierda (Zona de Salida): Regresa al Menu Principal con Command.ACTION.
+- El panel lateral derecho muestra el Minimapa y adapta las 4 tarjetas de jugadores a todo el espacio restante.
 """
 from __future__ import annotations
 import os
@@ -48,7 +47,6 @@ def _generar_superficie_minimapa(tipo_mapa: str) -> pygame.Surface:
     sx = base_w / float(WORLD_WIDTH)
     sy = base_h / float(WORLD_HEIGHT)
 
-    # Cuadricula sutil de piso
     for gx in range(0, WORLD_WIDTH, 300):
         x = int(gx * sx)
         pygame.draw.line(surf, (30, 35, 48), (x, 0), (x, base_h), 1)
@@ -56,7 +54,6 @@ def _generar_superficie_minimapa(tipo_mapa: str) -> pygame.Surface:
         y = int(gy * sy)
         pygame.draw.line(surf, (30, 35, 48), (0, y), (base_w, y), 1)
 
-    # Muros del mapa seleccionado
     for muro in obtener_muros_arena(tipo_mapa):
         r = pygame.Rect(
             int(muro.x * sx),
@@ -67,13 +64,11 @@ def _generar_superficie_minimapa(tipo_mapa: str) -> pygame.Surface:
         pygame.draw.rect(surf, (68, 76, 96), r)
         pygame.draw.rect(surf, (100, 112, 138), r, 1)
 
-    # 4 Spawns
     for idx, (spx, spy) in SPAWN_POINTS.items():
         cx, cy = int(spx * sx), int(spy * sy)
         pygame.draw.circle(surf, (42, 157, 143), (cx, cy), 8)
         pygame.draw.circle(surf, (255, 255, 255), (cx, cy), 8, 1)
 
-    # Reactor Central
     rx, ry = int(REACTOR_CENTER[0] * sx), int(REACTOR_CENTER[1] * sy)
     pygame.draw.circle(surf, (0, 180, 216), (rx, ry), 24, 2)
     pygame.draw.circle(surf, (0, 235, 255), (rx, ry), 13)
@@ -111,7 +106,7 @@ def _seleccionar_archivo_imagen() -> str | None:
 def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None):
     """
     Ejecuta el bucle del Lobby Caminable en Pygame adaptandose a la pantalla
-    y permitiendo interaccion tanto con raton como con mando (Command.ACTION y direcciones).
+    y operando mediante zonas fisicas en el Lobby para control con Mando.
     """
     pygame.init()
 
@@ -127,14 +122,13 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None):
     pygame.display.set_caption("Battle Arena Challenge - Lobby de Espera")
     clock = pygame.time.Clock()
 
-    # Reutilizar InputManager del Integrante 2 (mando Xbox/PS5 + teclado WASD/Flechas/Espacio)
     input_manager = create_default_input_manager(allow_keyboard_fallback=True)
     comandos_previos: set[Command] = set()
 
-    lista_colores = list(COLORES_AVATAR.items())  # [("Rojo", "#E63946"), ...]
+    lista_colores = list(COLORES_AVATAR.items())
     orden_pestanas = ["colores", "mapas", "musica"]
 
-    # Inicializar jugadores en la sala (jugador 0 es el jugador local)
+    # Inicializar jugador local en la parte inferior central del Lobby
     jugadores = [
         {
             "id": 1,
@@ -142,8 +136,8 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None):
             "color_nombre": controller.obtener_nombre_color(controller.avatar_color),
             "color": controller.avatar_color,
             "es_local": True,
-            "rel_x": 0.22,
-            "rel_y": 0.50,
+            "rel_x": 0.50,
+            "rel_y": 0.78,
             "rect": pygame.Rect(0, 0, 48, 48),
             "puntos": 0,
             "extrayendo": False,
@@ -162,8 +156,6 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None):
     # Estado del modal de la Mesa Interactiva y navegacion con Mando
     modal_abierto = False
     pestana_modal = "colores"  # "colores" | "mapas" | "musica"
-    # Foco del mando en el modal:
-    # fila_foco = 0 (Pestañas superiores), 1 (Opciones centrales), 2 (Boton LISTO)
     fila_foco = 1
     indice_foco = 0
     mapa_ampliado = False
@@ -178,7 +170,7 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None):
         sx = w / 1280.0
         sy = h / 720.0
 
-        # Zonas adaptadas a la resolucion actual de la ventana
+        # Zonas adaptadas a las dimensiones actuales de la pantalla
         zona_caminable = pygame.Rect(
             int(50 * sx),
             int(92 * sy),
@@ -197,6 +189,36 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None):
         mesa_rect = colisiones_lobby["mesa"]
         zona_interaccion = colisiones_lobby["zona_interaccion"]
         zona_despegue = colisiones_lobby["zona_despegue"]
+        zona_salida = colisiones_lobby["zona_salida"]
+
+        # Sincronizar jugadores conectados desde el servidor de red si existen
+        if getattr(controller, "estado_partida_red", None):
+            with controller.estado_red_lock:
+                remotos = controller.estado_partida_red.get("jugadores", [])
+                for idx_r, datos_r in enumerate(remotos):
+                    if idx_r == 0:
+                        continue
+                    while len(jugadores) <= idx_r and len(jugadores) < 4:
+                        usados = {j["color"].upper() for j in jugadores}
+                        c_nom, c_hex = "Azul", "#1D3557"
+                        for nc, hc in lista_colores:
+                            if hc.upper() not in usados:
+                                c_nom, c_hex = nc, hc
+                                break
+                        pos_def = [(0.50, 0.20), (0.72, 0.22), (0.28, 0.22)]
+                        rx_d, ry_d = pos_def[(len(jugadores) - 1) % len(pos_def)]
+                        jugadores.append({
+                            "id": datos_r.get("id", len(jugadores) + 1),
+                            "nombre": datos_r.get("nombre", f"Piloto_{len(jugadores) + 1}"),
+                            "color_nombre": c_nom,
+                            "color": c_hex,
+                            "es_local": False,
+                            "rel_x": rx_d,
+                            "rel_y": ry_d,
+                            "rect": pygame.Rect(0, 0, 48, 48),
+                            "puntos": datos_r.get("puntaje", 0),
+                            "extrayendo": False,
+                        })
 
         hitbox_size = max(34, int(48 * min(sx, sy)))
         for jug in jugadores:
@@ -207,8 +229,10 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None):
         jugador_local = jugadores[0]
         cerca_de_mesa = jugador_local["rect"].colliderect(zona_interaccion)
         en_zona_despegue = jugador_local["rect"].colliderect(zona_despegue)
+        en_zona_salida = jugador_local["rect"].colliderect(zona_salida)
+        puede_iniciar = True if not controller.modo_estricto else (len(jugadores) >= 2)
 
-        # Rectangulos interactivos del panel lateral derecho
+        # Rectangulos del Panel Lateral Derecho
         minimapa_rect = pygame.Rect(
             panel_derecho.x + int(22 * sx),
             panel_derecho.y + int(38 * sy),
@@ -222,28 +246,8 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None):
             int(28 * sy),
         )
 
-        btn_add_bot = pygame.Rect(
-            panel_derecho.x + int(22 * sx),
-            panel_derecho.y + int(455 * sy),
-            int(152 * sx),
-            int(32 * sy),
-        )
-        btn_rem_bot = pygame.Rect(
-            btn_add_bot.right + int(12 * sx),
-            panel_derecho.y + int(455 * sy),
-            int(152 * sx),
-            int(32 * sy),
-        )
-
-        btn_iniciar_rect = pygame.Rect(
-            panel_derecho.x + int(22 * sx),
-            panel_derecho.bottom - int(72 * sy),
-            panel_derecho.width - int(44 * sx),
-            int(54 * sy),
-        )
-
         # =====================================================================
-        # LECTURA DE COMANDOS DEL MANDO / TECLADO (DETECCION DE PULSACION UNICA)
+        # LECTURA DE COMANDOS DEL MANDO / TECLADO
         # =====================================================================
         comandos_actuales = input_manager.poll()
         comandos_nuevos = comandos_actuales - comandos_previos
@@ -253,7 +257,6 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None):
             j["color"]: j["nombre"] for j in jugadores if not j["es_local"]
         }
 
-        # Si el modal esta abierto, manejar navegacion por Mando (Cruceta/Stick + Boton Accion)
         if modal_abierto:
             if Command.UP in comandos_nuevos:
                 fila_foco = max(0, fila_foco - 1)
@@ -300,7 +303,6 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None):
 
             elif Command.ACTION in comandos_nuevos:
                 if fila_foco == 0:
-                    # Pasar directamente a las opciones de la pestaña
                     fila_foco = 1
                     indice_foco = 0
                 elif fila_foco == 1:
@@ -314,7 +316,7 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None):
                             jugador_local["color"] = hex_c
                             jugador_local["color_nombre"] = nom_c
                             controller.guardar_config_local()
-                            mensaje_modal = f"Color seleccionado con mando: {nom_c}."
+                            mensaje_modal = f"Color seleccionado: {nom_c}."
                     elif pestana_modal == "mapas":
                         nombre_mapa = TIPOS_MAPA[indice_foco % len(TIPOS_MAPA)]
                         if controller.es_creador:
@@ -328,13 +330,11 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None):
                         controller.actualizar_volumen_audio()
                         mensaje_modal = f"Volumen: {controller.volumen_musica}%"
                 elif fila_foco == 2:
-                    # Boton LISTO presionado con el mando
                     modal_abierto = False
                     mensaje_modal = ""
 
         else:
-            # Si NO esta abierto el modal, el boton de Accion del mando (Command.ACTION)
-            # permite abrir la Mesa de Comando o Iniciar la Partida en la Zona de Despegue
+            # Interaccion en las 3 Zonas Caminables del Lobby mediante Boton de Accion del Mando
             if Command.ACTION in comandos_nuevos:
                 if mapa_ampliado:
                     mapa_ampliado = False
@@ -343,9 +343,12 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None):
                     fila_foco = 1
                     indice_foco = 0
                     mensaje_modal = ""
-                elif en_zona_despegue:
+                elif en_zona_despegue and puede_iniciar:
                     controller.jugadores_sala = jugadores
                     accion_salida = "arena"
+                    corriendo = False
+                elif en_zona_salida:
+                    accion_salida = "menu"
                     corriendo = False
 
         # =====================================================================
@@ -353,7 +356,7 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None):
         # =====================================================================
         screen.fill((18, 20, 27))
 
-        rects_hud = dibujar_hud_lobby(screen, controller, jugadores, avatar_img_surface)
+        dibujar_hud_lobby(screen, controller, jugadores, avatar_img_surface)
 
         # Zona Caminable de la Nave
         pygame.draw.rect(screen, (26, 30, 40), zona_caminable, border_radius=8)
@@ -372,16 +375,25 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None):
         font_reg = pygame.font.SysFont("Segoe UI", max(11, int(13 * sy)))
         font_small = pygame.font.SysFont("Segoe UI", max(10, int(12 * sy)))
 
-        # Plataforma de Despegue (para iniciar partida caminando hacia ella y pulsando Accion)
+        # 1. Izquierda: Zona Caminable de Salida (Volver al Menu Principal)
+        color_sal = (184, 46, 56) if en_zona_salida else (68, 34, 42)
+        pygame.draw.rect(screen, color_sal, zona_salida, border_radius=8)
+        pygame.draw.rect(screen, (230, 95, 105), zona_salida, 2, border_radius=8)
+        lbl_sal1 = font_small.render("SALIR AL MENU", True, (255, 255, 255))
+        lbl_sal2 = font_small.render("[Boton Accion]", True, (240, 195, 200))
+        screen.blit(lbl_sal1, (zona_salida.centerx - lbl_sal1.get_width() // 2, zona_salida.centery - lbl_sal1.get_height()))
+        screen.blit(lbl_sal2, (zona_salida.centerx - lbl_sal2.get_width() // 2, zona_salida.centery + 2))
+
+        # 2. Derecha: Zona Caminable de Despegue (Iniciar Partida)
         color_pad = (42, 157, 143) if en_zona_despegue else (34, 58, 62)
         pygame.draw.rect(screen, color_pad, zona_despegue, border_radius=8)
         pygame.draw.rect(screen, (90, 210, 190), zona_despegue, 2, border_radius=8)
-        lbl_pad1 = font_small.render("ZONA DESPEGUE", True, (255, 255, 255))
-        lbl_pad2 = font_small.render("[Accion / Espacio]", True, (200, 240, 230))
+        lbl_pad1 = font_small.render("INICIAR PARTIDA", True, (255, 255, 255))
+        lbl_pad2 = font_small.render("[Boton Accion]", True, (200, 240, 230))
         screen.blit(lbl_pad1, (zona_despegue.centerx - lbl_pad1.get_width() // 2, zona_despegue.centery - lbl_pad1.get_height()))
         screen.blit(lbl_pad2, (zona_despegue.centerx - lbl_pad2.get_width() // 2, zona_despegue.centery + 2))
 
-        # Zona de interaccion y Mesa Central de Comando
+        # 3. Centro: Mesa de Comando
         color_zona = (42, 157, 143) if cerca_de_mesa else (50, 60, 80)
         pygame.draw.rect(screen, color_zona, zona_interaccion, 2, border_radius=10)
         pygame.draw.rect(screen, (45, 55, 78), mesa_rect, border_radius=8)
@@ -392,11 +404,13 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None):
         screen.blit(lbl_mesa1, (mesa_rect.centerx - lbl_mesa1.get_width() // 2, mesa_rect.centery - lbl_mesa1.get_height()))
         screen.blit(lbl_mesa2, (mesa_rect.centerx - lbl_mesa2.get_width() // 2, mesa_rect.centery + 2))
 
-        if (cerca_de_mesa or en_zona_despegue) and not modal_abierto:
+        if (cerca_de_mesa or en_zona_despegue or en_zona_salida) and not modal_abierto:
             if cerca_de_mesa:
-                txt_aviso = "Presiona [Boton Accion del Mando / Espacio / E] para Configurar"
+                txt_aviso = "Presiona [Boton Accion / Espacio] para Configurar Colores, Mapa y Audio"
+            elif en_zona_despegue:
+                txt_aviso = "Presiona [Boton Accion / Espacio] para Iniciar la Partida"
             else:
-                txt_aviso = "Presiona [Boton Accion del Mando / Espacio] para Iniciar Partida"
+                txt_aviso = "Presiona [Boton Accion / Espacio] para Volver al Menu Principal"
             aviso_surf = font_bold.render(txt_aviso, True, (233, 196, 106))
             aviso_bg = pygame.Rect(
                 zona_caminable.centerx - aviso_surf.get_width() // 2 - 12,
@@ -424,7 +438,9 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None):
             lbl_nom = font_small.render(jug["nombre"], True, (255, 255, 255))
             screen.blit(lbl_nom, (j_rect.centerx - lbl_nom.get_width() // 2, j_rect.top - lbl_nom.get_height() - 4))
 
-        # Panel Lateral Derecho
+        # =====================================================================
+        # PANEL LATERAL DERECHO (MINIMAPA Y JUGADORES ADAPTADOS AL ESPACIO)
+        # =====================================================================
         pygame.draw.rect(screen, (26, 30, 40), panel_derecho, border_radius=8)
         pygame.draw.rect(screen, (58, 66, 86), panel_derecho, 2, border_radius=8)
 
@@ -442,44 +458,44 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None):
             (btn_ampliar_rect.centerx - lbl_amp.get_width() // 2, btn_ampliar_rect.centery - lbl_amp.get_height() // 2),
         )
 
+        # Seccion de Jugadores adaptada para completar todo el espacio restante del panel
         lbl_slots = font_bold.render("JUGADORES EN SALA (2 A 4):", True, (200, 210, 225))
-        screen.blit(lbl_slots, (minimapa_rect.x, btn_ampliar_rect.bottom + int(12 * sy)))
+        titulo_slots_y = btn_ampliar_rect.bottom + int(16 * sy)
+        screen.blit(lbl_slots, (minimapa_rect.x, titulo_slots_y))
 
-        slot_start_y = btn_ampliar_rect.bottom + int(36 * sy)
-        slot_h = max(26, int(34 * sy))
+        slot_start_y = titulo_slots_y + lbl_slots.get_height() + int(10 * sy)
+        margen_inf = int(18 * sy)
+        espacio_disponible_h = max(140, (panel_derecho.bottom - margen_inf) - slot_start_y)
+        sep_slots = max(8, int(10 * sy))
+        slot_h = (espacio_disponible_h - (3 * sep_slots)) // 4
+
         for i in range(4):
-            s_rect = pygame.Rect(minimapa_rect.x, slot_start_y + i * (slot_h + int(5 * sy)), minimapa_rect.width, slot_h)
-            pygame.draw.rect(screen, (20, 23, 31), s_rect, border_radius=5)
+            sy_pos = slot_start_y + i * (slot_h + sep_slots)
+            s_rect = pygame.Rect(minimapa_rect.x, sy_pos, minimapa_rect.width, slot_h)
+            pygame.draw.rect(screen, (20, 23, 31), s_rect, border_radius=7)
             if i < len(jugadores):
                 j_slot = jugadores[i]
-                pygame.draw.rect(screen, hex_to_rgb(j_slot["color"]), s_rect, 1, border_radius=5)
-                c_box = pygame.Rect(s_rect.x + int(8 * sx), s_rect.centery - int(8 * sy), int(16 * sx), int(16 * sy))
-                pygame.draw.rect(screen, hex_to_rgb(j_slot["color"]), c_box, border_radius=3)
-                etiqueta = f"{i + 1}. {j_slot['nombre']} ({j_slot['color_nombre']})"
-                surf_s = font_small.render(etiqueta, True, (255, 255, 255))
-                screen.blit(surf_s, (c_box.right + int(8 * sx), s_rect.centery - surf_s.get_height() // 2))
+                pygame.draw.rect(screen, hex_to_rgb(j_slot["color"]), s_rect, 2, border_radius=7)
+                box_sz = max(20, int(slot_h * 0.48))
+                c_box = pygame.Rect(
+                    s_rect.x + int(12 * sx),
+                    s_rect.centery - box_sz // 2,
+                    box_sz,
+                    box_sz,
+                )
+                pygame.draw.rect(screen, hex_to_rgb(j_slot["color"]), c_box, border_radius=4)
+                pygame.draw.rect(screen, (255, 255, 255), c_box, 1, border_radius=4)
+
+                etiqueta = f"{i + 1}. {j_slot['nombre']}"
+                sub_etiqueta = f"Color: {j_slot['color_nombre']}"
+                surf_s = font_bold.render(etiqueta, True, (255, 255, 255))
+                surf_sub = font_small.render(sub_etiqueta, True, (165, 175, 195))
+                screen.blit(surf_s, (c_box.right + int(12 * sx), s_rect.y + int(slot_h * 0.16)))
+                screen.blit(surf_sub, (c_box.right + int(12 * sx), s_rect.y + int(slot_h * 0.54)))
             else:
-                pygame.draw.rect(screen, (45, 50, 65), s_rect, 1, border_radius=5)
-                surf_vacio = font_small.render(f"{i + 1}. Esperando conexion...", True, (110, 120, 140))
-                screen.blit(surf_vacio, (s_rect.x + int(10 * sx), s_rect.centery - surf_vacio.get_height() // 2))
-
-        pygame.draw.rect(screen, (43, 55, 75), btn_add_bot, border_radius=5)
-        lbl_add = font_small.render("+ Simular Jugador", True, (220, 230, 245))
-        screen.blit(lbl_add, (btn_add_bot.centerx - lbl_add.get_width() // 2, btn_add_bot.centery - lbl_add.get_height() // 2))
-
-        pygame.draw.rect(screen, (55, 43, 55), btn_rem_bot, border_radius=5)
-        lbl_rem = font_small.render("- Quitar Jugador", True, (220, 200, 210))
-        screen.blit(lbl_rem, (btn_rem_bot.centerx - lbl_rem.get_width() // 2, btn_rem_bot.centery - lbl_rem.get_height() // 2))
-
-        puede_iniciar = True if not controller.modo_estricto else (len(jugadores) >= 2)
-        color_btn_ini = (42, 157, 143) if puede_iniciar else (60, 65, 78)
-        texto_btn_ini = "INICIAR PARTIDA" if puede_iniciar else "ESPERANDO JUGADORES (MIN 2)"
-        pygame.draw.rect(screen, color_btn_ini, btn_iniciar_rect, border_radius=8)
-        lbl_ini = font_bold.render(texto_btn_ini, True, (255, 255, 255))
-        screen.blit(
-            lbl_ini,
-            (btn_iniciar_rect.centerx - lbl_ini.get_width() // 2, btn_iniciar_rect.centery - lbl_ini.get_height() // 2),
-        )
+                pygame.draw.rect(screen, (45, 50, 65), s_rect, 1, border_radius=7)
+                surf_vacio = font_reg.render(f"Ranura {i + 1}: Esperando jugador...", True, (110, 120, 140))
+                screen.blit(surf_vacio, (s_rect.x + int(14 * sx), s_rect.centery - surf_vacio.get_height() // 2))
 
         # =====================================================================
         # VENTANA MODAL SUPERPUESTA (NAVEGABLE CON MANDO Y RATON)
@@ -496,7 +512,6 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None):
             pygame.draw.rect(screen, (26, 30, 42), modal_rect, border_radius=12)
             pygame.draw.rect(screen, (74, 144, 226), modal_rect, 2, border_radius=12)
 
-            # Pestañas superiores (Fila 0 de navegacion con mando)
             tab_w = (modal_w - int(60 * sx)) // 3
             tab_h = max(34, int(40 * sy))
             tab_y = modal_rect.y + int(18 * sy)
@@ -516,7 +531,6 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None):
                     t_rect,
                     border_radius=6,
                 )
-                # Si el foco del mando esta en la fila de pestañas, resaltar con borde amarillo
                 if fila_foco == 0 and activo:
                     pygame.draw.rect(screen, (233, 196, 106), t_rect, 3, border_radius=6)
 
@@ -526,7 +540,6 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None):
 
             content_y = tab_y + tab_h + int(20 * sy)
 
-            # CONTENIDO PESTANA 1: COLORES Y AVATAR
             if pestana_modal == "colores":
                 lbl_inst = font_reg.render(
                     "Mando: Izquierda/Derecha para elegir color y Boton Accion para confirmar:",
@@ -561,7 +574,6 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None):
                         pygame.draw.rect(screen, (40, 45, 60), c_rect, 2, border_radius=8)
                         est_txt = "LIBRE"
 
-                    # Resaltar cursor del mando
                     if foco_mando:
                         pygame.draw.rect(screen, (233, 196, 106), c_rect.inflate(8, 8), 3, border_radius=10)
 
@@ -598,7 +610,6 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None):
                     )
                     rects_modal["btn_limpiar_img"] = btn_limpiar_img
 
-            # CONTENIDO PESTANA 2: TIPOS DE MAPA (CANDADO PARA INVITADOS)
             elif pestana_modal == "mapas":
                 if controller.es_creador:
                     lbl_m_info = font_bold.render(
@@ -645,7 +656,6 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None):
                     screen.blit(lbl_mp, (m_rect.x + int(18 * sx), m_rect.centery - lbl_mp.get_height() // 2))
                     rects_modal[f"mapa_{idx}"] = (m_rect, nombre_mapa)
 
-            # CONTENIDO PESTANA 3: MUSICA Y AUDIO
             elif pestana_modal == "musica":
                 lbl_au = font_bold.render(
                     f"Volumen de Musica Continua: {controller.volumen_musica}% (Mando: Izq/Der ajusta, Accion silencia)",
@@ -686,7 +696,6 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None):
                 rects_modal["vol_mas"] = btn_mas
                 rects_modal["vol_mute"] = btn_mute
 
-            # Guía de navegacion con mando en el modal
             lbl_guia_m = font_small.render(
                 "Navegacion Mando: Arriba/Abajo cambia entre Pestañas, Opciones y LISTO | Accion selecciona",
                 True,
@@ -698,7 +707,6 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None):
                 s_msg = font_reg.render(mensaje_modal, True, (233, 196, 106))
                 screen.blit(s_msg, (modal_rect.x + int(28 * sx), modal_rect.bottom - int(118 * sy)))
 
-            # Boton LISTO (Fila 2 de navegacion con mando)
             btn_listo = pygame.Rect(
                 modal_rect.centerx - int(110 * sx),
                 modal_rect.bottom - int(56 * sy),
@@ -868,54 +876,23 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None):
 
                     continue
 
-                # Clics normales en el Lobby cuando el modal no esta abierto
-                if rects_hud["btn_menu"].collidepoint(pos):
-                    accion_salida = "menu"
-                    corriendo = False
-
-                elif rects_hud["btn_mesa"].collidepoint(pos) or mesa_rect.collidepoint(pos):
+                # Clics directos sobre las zonas del Lobby o el minimapa
+                if mesa_rect.collidepoint(pos):
                     modal_abierto = True
                     fila_foco = 1
                     indice_foco = 0
                     mensaje_modal = ""
-
-                elif btn_ampliar_rect.collidepoint(pos) or minimapa_rect.collidepoint(pos):
-                    mapa_ampliado = True
-
-                elif btn_add_bot.collidepoint(pos):
-                    if len(jugadores) < 4:
-                        usados = {j["color"].upper() for j in jugadores}
-                        color_disp_nom, color_disp_hex = "Azul", "#1D3557"
-                        for nom_c, hex_c in lista_colores:
-                            if hex_c.upper() not in usados:
-                                color_disp_nom, color_disp_hex = nom_c, hex_c
-                                break
-                        nuevo_id = len(jugadores) + 1
-                        posiciones_prueba = [(0.75, 0.22), (0.22, 0.78), (0.75, 0.78)]
-                        rx, ry = posiciones_prueba[(nuevo_id - 2) % len(posiciones_prueba)]
-                        jugadores.append({
-                            "id": nuevo_id,
-                            "nombre": f"Piloto_{nuevo_id}",
-                            "color_nombre": color_disp_nom,
-                            "color": color_disp_hex,
-                            "es_local": False,
-                            "rel_x": rx,
-                            "rel_y": ry,
-                            "rect": pygame.Rect(0, 0, hitbox_size, hitbox_size),
-                            "puntos": 0,
-                            "extrayendo": False,
-                        })
-
-                elif btn_rem_bot.collidepoint(pos):
-                    if len(jugadores) > 1:
-                        jugadores.pop()
-
-                elif btn_iniciar_rect.collidepoint(pos) and puede_iniciar:
+                elif zona_despegue.collidepoint(pos) and puede_iniciar:
                     controller.jugadores_sala = jugadores
                     accion_salida = "arena"
                     corriendo = False
+                elif zona_salida.collidepoint(pos):
+                    accion_salida = "menu"
+                    corriendo = False
+                elif btn_ampliar_rect.collidepoint(pos) or minimapa_rect.collidepoint(pos):
+                    mapa_ampliado = True
 
-        # Movimiento del jugador local en la sala caminable (solo si no hay modal abierto)
+        # Movimiento del jugador local en la sala caminable
         if not modal_abierto and not mapa_ampliado:
             dx_unit, dy_unit = direction_from(comandos_actuales)
             if dx_unit != 0 or dy_unit != 0:

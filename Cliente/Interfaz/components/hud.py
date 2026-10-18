@@ -1,7 +1,8 @@
 """
 Componente HUD para las vistas de Pygame (Lobby y Arena).
 Se adapta dinamicamente a las dimensiones de la pantalla (w, h).
-Cumple con CA-06.5 (mini-avatar obligatorio), CA-09.9 (temporizador) y tarjetas de estado.
+Sin botones flotantes en la barra superior: toda la interaccion se realiza
+caminando con el mando hacia las zonas del Lobby.
 """
 from __future__ import annotations
 import pygame
@@ -21,8 +22,7 @@ def dibujar_hud_lobby(
     avatar_img_surface: pygame.Surface | None = None,
 ) -> dict[str, pygame.Rect]:
     """
-    Dibuja la barra superior del Lobby adaptada al tamano de la ventana.
-    Retorna un diccionario con los rectangulos de botones interactivos del HUD.
+    Dibuja la barra superior informativa del Lobby adaptada al tamano de la ventana.
     """
     w, h = surface.get_size()
     sx = w / 1280.0
@@ -64,45 +64,14 @@ def dibujar_hud_lobby(
     listo = num_jug >= 2
     color_estado = (42, 157, 143) if listo else (233, 196, 106)
     texto_principal = f"SALA DE ESPERA: {num_jug}/4 JUGADORES"
-    texto_sub = "Listo para iniciar partida" if listo else "Esperando jugadores... (Minimo 2 para iniciar)"
+    texto_sub = "Listo para iniciar partida" if listo else "Camina a las zonas de la sala y presiona Accion"
 
     surf_prin = font_bold.render(texto_principal, True, color_estado)
     surf_sub = font_small.render(texto_sub, True, (210, 215, 225))
     surface.blit(surf_prin, (w // 2 - surf_prin.get_width() // 2, int(10 * sy)))
     surface.blit(surf_sub, (w // 2 - surf_sub.get_width() // 2, int(12 * sy) + surf_prin.get_height()))
 
-    # 3. Derecha: Boton para Configurar en Mesa y Boton Volver al Menu
-    btn_w = max(135, int(150 * sx))
-    btn_h = max(32, int(38 * sy))
-    btn_y = (bar_h - btn_h) // 2
-
-    btn_menu_rect = pygame.Rect(w - btn_w - int(20 * sx), btn_y, btn_w, btn_h)
-    pygame.draw.rect(surface, (184, 46, 56), btn_menu_rect, border_radius=6)
-    lbl_menu = font_small.render("< Menu Principal", True, (255, 255, 255))
-    surface.blit(
-        lbl_menu,
-        (
-            btn_menu_rect.centerx - lbl_menu.get_width() // 2,
-            btn_menu_rect.centery - lbl_menu.get_height() // 2,
-        ),
-    )
-
-    btn_mesa_rect = pygame.Rect(btn_menu_rect.left - btn_w - int(12 * sx), btn_y, btn_w, btn_h)
-    pygame.draw.rect(surface, (43, 45, 66), btn_mesa_rect, border_radius=6)
-    pygame.draw.rect(surface, (90, 100, 130), btn_mesa_rect, 1, border_radius=6)
-    lbl_mesa = font_small.render("Opciones Sala (E)", True, (255, 255, 255))
-    surface.blit(
-        lbl_mesa,
-        (
-            btn_mesa_rect.centerx - lbl_mesa.get_width() // 2,
-            btn_mesa_rect.centery - lbl_mesa.get_height() // 2,
-        ),
-    )
-
-    return {
-        "btn_menu": btn_menu_rect,
-        "btn_mesa": btn_mesa_rect,
-    }
+    return {}
 
 
 def dibujar_hud_arena(
@@ -130,8 +99,8 @@ def dibujar_hud_arena(
     font_bold = pygame.font.SysFont("Segoe UI", max(12, int(14 * sy)), bold=True)
     font_small = pygame.font.SysFont("Segoe UI", max(11, int(12 * sy)))
 
-    # 1. Esquina Superior Izquierda: Mini-Avatar Local + Boton Salir al Lobby
-    panel_local = pygame.Rect(int(16 * sx), int(14 * sy), int(250 * sx), int(54 * sy))
+    # 1. Esquina Superior Izquierda: Mini-Avatar Local
+    panel_local = pygame.Rect(int(16 * sx), int(14 * sy), int(260 * sx), int(54 * sy))
     pygame.draw.rect(surface, (24, 26, 34), panel_local, border_radius=8)
     pygame.draw.rect(surface, (65, 72, 92), panel_local, 2, border_radius=8)
 
@@ -153,23 +122,6 @@ def dibujar_hud_arena(
     lbl_m = font_small.render(f"Mapa: {controller.mapa_seleccionado}", True, (160, 170, 184))
     surface.blit(lbl_u, (av_rect.right + int(10 * sx), panel_local.y + int(6 * sy)))
     surface.blit(lbl_m, (av_rect.right + int(10 * sx), panel_local.y + int(28 * sy)))
-
-    btn_lobby = pygame.Rect(
-        panel_local.x,
-        panel_local.bottom + int(8 * sy),
-        int(145 * sx),
-        int(32 * sy),
-    )
-    pygame.draw.rect(surface, (43, 45, 66), btn_lobby, border_radius=6)
-    pygame.draw.rect(surface, (90, 100, 130), btn_lobby, 1, border_radius=6)
-    lbl_salir = font_small.render("< Volver al Lobby", True, (255, 255, 255))
-    surface.blit(
-        lbl_salir,
-        (
-            btn_lobby.centerx - lbl_salir.get_width() // 2,
-            btn_lobby.centery - lbl_salir.get_height() // 2,
-        ),
-    )
 
     # 2. Centro Superior: Temporizador (CA-09.9)
     timer_w = max(140, int(170 * sx))
@@ -241,6 +193,4 @@ def dibujar_hud_arena(
         jy = radar_rect.y + int(r_rect.centery * ry_scale)
         pygame.draw.circle(surface, hex_to_rgb(jug["color"]), (jx, jy), max(3, int(5 * sy)))
 
-    return {
-        "btn_lobby": btn_lobby,
-    }
+    return {}

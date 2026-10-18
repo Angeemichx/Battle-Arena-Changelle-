@@ -27,8 +27,11 @@ SPAWN_POINTS = {
 
 def obtener_colisiones_lobby(zona_caminable: pygame.Rect) -> dict[str, list[pygame.Rect] | pygame.Rect]:
     """
-    Genera los muros perimetrales, la mesa central interactiva y la plataforma
-    de inicio de partida del Lobby caminable adaptandose a la pantalla.
+    Genera los muros perimetrales y las 3 zonas interactivas caminables del Lobby
+    pensadas para usarse con Mando (Gamepad):
+    - Centro: Mesa de Comando (Configuracion de Colores, Mapas y Audio).
+    - Derecha: Zona de Despegue (Iniciar Partida hacia la Arena).
+    - Izquierda: Zona de Salida (Volver al Menu Principal).
     """
     grosor = max(12, int(zona_caminable.width * 0.02))
     x, y, w, h = zona_caminable.x, zona_caminable.y, zona_caminable.width, zona_caminable.height
@@ -40,22 +43,29 @@ def obtener_colisiones_lobby(zona_caminable: pygame.Rect) -> dict[str, list[pyga
         pygame.Rect(x + w - grosor, y, grosor, h),         # Pared Derecha
     ]
 
-    # Mesa de Comando en el centro de la zona caminable
+    # 1. Centro: Mesa de Comando
     mesa_w = int(w * 0.18)
     mesa_h = int(h * 0.18)
     mesa_x = x + (w - mesa_w) // 2
     mesa_y = y + (h - mesa_h) // 2
     mesa_rect = pygame.Rect(mesa_x, mesa_y, mesa_w, mesa_h)
 
-    # Zona de interaccion alrededor de la mesa (para activar con boton de accion del mando o E)
     margen_interaccion = max(32, int(min(w, h) * 0.08))
     zona_interaccion = mesa_rect.inflate(margen_interaccion * 2, margen_interaccion * 2)
 
-    # Plataforma caminable de Despegue (para poder iniciar partida tambien con el mando)
-    pad_w = int(w * 0.22)
-    pad_h = int(h * 0.14)
+    # 2. Derecha: Plataforma caminable de Despegue (Iniciar Partida)
+    pad_w = int(w * 0.21)
+    pad_h = int(h * 0.15)
     zona_despegue = pygame.Rect(
         x + w - pad_w - grosor - int(w * 0.03),
+        y + (h - pad_h) // 2,
+        pad_w,
+        pad_h,
+    )
+
+    # 3. Izquierda: Plataforma caminable de Salida (Volver al Menu Principal con mando)
+    zona_salida = pygame.Rect(
+        x + grosor + int(w * 0.03),
         y + (h - pad_h) // 2,
         pad_w,
         pad_h,
@@ -67,6 +77,7 @@ def obtener_colisiones_lobby(zona_caminable: pygame.Rect) -> dict[str, list[pyga
         "mesa": mesa_rect,
         "zona_interaccion": zona_interaccion,
         "zona_despegue": zona_despegue,
+        "zona_salida": zona_salida,
     }
 
 
@@ -84,7 +95,7 @@ def obtener_muros_arena(tipo_mapa: str = "Estacion Estandar") -> list[pygame.Rec
         pygame.Rect(0, 0, grosor_borde, WORLD_HEIGHT),
         pygame.Rect(WORLD_WIDTH - grosor_borde, 0, grosor_borde, WORLD_HEIGHT),
 
-        # Bloques estructurales Noroeste (dejan corredor perimetral y corredor hacia el centro)
+        # Bloques estructurales Noroeste
         pygame.Rect(520, 380, 480, 340),
         pygame.Rect(1140, 380, 360, 480),
         pygame.Rect(520, 860, 480, 220),
@@ -106,7 +117,6 @@ def obtener_muros_arena(tipo_mapa: str = "Estacion Estandar") -> list[pygame.Rec
     ]
 
     if tipo_mapa == "Reactor Inestable":
-        # 4 Pilares de contencion diagonales alrededor del salon del Reactor Central
         muros.extend([
             pygame.Rect(1420, 960, 110, 110),
             pygame.Rect(2070, 960, 110, 110),
@@ -114,7 +124,6 @@ def obtener_muros_arena(tipo_mapa: str = "Estacion Estandar") -> list[pygame.Rec
             pygame.Rect(2070, 1530, 110, 110),
         ])
     elif tipo_mapa == "Laberinto Cerrado":
-        # Esclusas y divisores adicionales en los pasillos principales para cubrirse de guardianes
         muros.extend([
             pygame.Rect(1720, 620, 160, 70),
             pygame.Rect(1720, 1910, 160, 70),

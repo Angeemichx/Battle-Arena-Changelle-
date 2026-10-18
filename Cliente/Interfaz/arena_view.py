@@ -327,10 +327,6 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None):
                 if event.key == pygame.K_ESCAPE:
                     accion_salida = "lobby"
                     corriendo = False
-            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                if rects_hud["btn_lobby"].collidepoint(event.pos):
-                    accion_salida = "lobby"
-                    corriendo = False
 
         pygame.display.flip()
 

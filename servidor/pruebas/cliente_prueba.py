@@ -52,6 +52,7 @@ def main():
             print("  w = arriba    s = abajo")
             print("  a = izquierda d = derecha")
             print("  e = accion    q = salir")
+            print("  i = iniciar partida (1 minuto)")
             tecla = input(f"[{nombre}] Tecla: ").strip().lower()
 
             if tecla == "q":
@@ -68,6 +69,9 @@ def main():
                 msg = {"tipo": "movimiento", "dx": dx, "dy": dy}
             elif tecla == "e":
                 msg = {"tipo": "accion", "mensaje": f"{nombre} hizo accion!"}
+            elif tecla == "i":
+                msg = {"tipo": "configurar_partida", "minutos": 0.1}
+                print(f"[{nombre}] Iniciando partida de 1 minuto...")
             else:
                 print(f"[{nombre}] Tecla no reconocida")
                 continue

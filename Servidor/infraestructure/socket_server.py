@@ -1,6 +1,7 @@
 import socket
 import threading
 import json
+import time
 from Servidor.domain.jugador import Jugador
 from Servidor.domain.partida import Partida
 
@@ -25,6 +26,11 @@ class ServidorJuego:
         self.socket_servidor.bind((self.host, self.port))
         self.socket_servidor.listen(2)
         print(f"[SERVIDOR] Escuchando en {self.host}:{self.port}")
+
+        #Agregar hilo para revisar el tiempo en cada segundo que transcurre
+        hilo_tiempo = threading.Thread(target=self._reloj_partida)
+        hilo_tiempo.daemon = True
+        hilo_tiempo.start()
 
         while True:
             socket_cliente, direccion = self.socket_servidor.accept()
@@ -129,8 +135,8 @@ class ServidorJuego:
             self.partida.iniciar_cronometro(minutos)
             print (f"[SERVIDOR] Partida configurada para {minutos} minutos.")
             self._broadcast(self.partida.estado_actual())
-            
-        if tipo == "movimiento":
+
+        elif tipo == "movimiento":
             dx = mensaje.get("dx", 0)
             dy = mensaje.get("dy", 0)
             with self.lock:
@@ -171,3 +177,11 @@ class ServidorJuego:
             socket_cliente.sendall(datos)
         except Exception:
             pass
+
+    def _reloj_partida(self):
+        while True:
+            time.sleep(1) # Espera 1 segundo
+            if self.partida.activa:
+                self.partida.verificar_tiempo()
+                # Llamar al broadcast
+                self._broadcast(self.partida.estado_actual())

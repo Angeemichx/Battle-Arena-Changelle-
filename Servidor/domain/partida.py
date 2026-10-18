@@ -37,7 +37,6 @@ class Partida:
                 self.jugadores[id_jugador].mover(dx, dy)
                 self.jugadores [id_jugador].sumar_punto()
                 self._verificar_ganador()
-                self._verificar_tiempo()
 
     #Al alcanzar el limite de puntos el jugador gana 
     def _verificar_ganador (self):
@@ -46,39 +45,41 @@ class Partida:
                     self._declarar_ganador()
                     break
 
-    def _verificar_tiempo(self):
+    def verificar_tiempo(self):
         if not self.activa:
             return
+            
         tiempo_transcurrido = time.time() - self.tiempo_inicio
         if tiempo_transcurrido >= self.tiempo_limite_segundos:
-            self._manejar_fin_de_tiempo()
+            puntajes = [j.puntaje for j in self.jugadores.values()]
+            print(f"[PARTIDA] Tiempo terminado. Puntajes: {puntajes}")
 
-    def _manejar_fin_de_tiempo(self):    
-        if self.en_tiempo_extra:
-            # Si el tiempo extra se acabó, se definirá por puntos obtenidos
-            self._declarar_ganador()
-            return
-
-        #Verificar si hay empate
-        puntajes = [j.puntaje for j in self.jugadores.values()]
-        if len(set(puntajes)) == 1 and len(puntajes) > 1:
-            #Sí hay empate. Entonces iniciar tiempo extra de dos minutos
-            print("[PARTIDA] ¡Empate! Iniciando tiempo extra de 2 minutos.")
-            self.en_tiempo_extra = True
-            self.tiempo_limite_segundos = 120 # 2 minutos en segundos
-            self.tiempo_inicio = time.time()
-        else:
-            self._declarar_ganador()
+            if self.en_tiempo_extra:
+                # Si el tiempo extra se acabó, declaramos ganador *Cambiar para sprint 3
+                print("[PARTIDA] Fin del tiempo extra.")
+                self._declarar_ganador()
+                return
+            
+            if len(puntajes) >= 2 and puntajes[0] == puntajes[1]:
+                # Hay empate en tiempo normal
+                print("[PARTIDA] ¡Empate! Iniciando tiempo extra de 2 minutos.")
+                self.en_tiempo_extra = True
+                self.tiempo_limite_segundos = 120 # 2 minutos
+                self.tiempo_inicio = time.time()  # Reiniciamos el reloj
+                self.activa = True                # Aseguramos que siga activa
+            else:
+                # No hay empate, hay un ganador claro
+                self._declarar_ganador()
 
     def _declarar_ganador(self):
         self.activa = False
         if not self.jugadores:
             return
             
-        # Ordenar por puntaje
+        # Ordenar por puntaje si hay empate, tomará al primero de la lista *Cambiar para sprint 3
         jugadores_ordenados = sorted(self.jugadores.values(), key=lambda j: j.puntaje, reverse=True)
         self.ganador = jugadores_ordenados[0].id_jugador
-        print(f"[PARTIDA] Fin del juego. Ganador: {self.ganador}")
+        print(f"[PARTIDA] Fin del juego. Ganador: Jugador {self.ganador}")
 
     #devolver el estado de la partida como un diccionario para enviarlo por red para los demas clientes
     def estado_actual(self):

@@ -18,7 +18,7 @@ class ServidorJuego:
         self.partida = Partida(id_partida="partida_1", limite_puntos=limite_puntos)
         self.siguiente_id = 1 
 
-    #Arrancar servidor y quedarse escuchando conexiones
+    #Arrancar Servidor y quedarse escuchando conexiones
 
     def iniciar(self):
         self.socket_servidor.bind((HOST, PUERTO))

@@ -9,7 +9,7 @@ sys.path.insert(0, str(BASE))
 from Servidor.adapters.json_repository import JsonRepository
 from Servidor.domain.cuenta import Cuenta
 
-ruta = BASE / "servidor" / "infraestructure" / "data" / "usuarios.json"
+ruta = BASE / "Servidor" / "infraestructure" / "data" / "usuarios.json"
 print("Ruta usada:", ruta)
 
 repo = JsonRepository(str(ruta))

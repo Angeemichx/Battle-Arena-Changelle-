@@ -5,7 +5,8 @@ Construida en CustomTkinter sin decoraciones innecesarias.
 import customtkinter as ctk
 from Cliente.Interfaz.components.ui_helpers import (
     COLOR_PANEL, COLOR_PRIMARIO, COLOR_PRIMARIO_HOVER, 
-    COLOR_SECUNDARIO, COLOR_TEXTO, COLOR_PELIGRO
+    COLOR_SECUNDARIO, COLOR_TEXTO, COLOR_PELIGRO,
+    adaptar_ventana_ctk
 )
 
 class LoginView(ctk.CTk):
@@ -14,8 +15,8 @@ class LoginView(ctk.CTk):
         self.controller = controller
         
         self.title("Battle Arena - Iniciar Sesion")
-        self.geometry("460x560")
-        self.resizable(False, False)
+        adaptar_ventana_ctk(self, porcentaje_w=0.38, porcentaje_h=0.68, min_w=460, min_h=550)
+        self.resizable(True, True)
         ctk.set_appearance_mode("dark")
         
         # Contenedor central

@@ -6,7 +6,8 @@ import customtkinter as ctk
 from Cliente.Interfaz.components.ui_helpers import (
     COLOR_PANEL, COLOR_PRIMARIO, COLOR_PRIMARIO_HOVER,
     COLOR_SECUNDARIO, COLOR_SECUNDARIO_HOVER,
-    COLOR_EXITO, COLOR_EXITO_HOVER, COLOR_TEXTO
+    COLOR_EXITO, COLOR_EXITO_HOVER, COLOR_TEXTO,
+    adaptar_ventana_ctk
 )
 
 class JugarView(ctk.CTk):
@@ -15,8 +16,8 @@ class JugarView(ctk.CTk):
         self.controller = controller
         
         self.title("Battle Arena - Salas de Partida")
-        self.geometry("480x560")
-        self.resizable(False, False)
+        adaptar_ventana_ctk(self, porcentaje_w=0.40, porcentaje_h=0.68, min_w=480, min_h=560)
+        self.resizable(True, True)
         ctk.set_appearance_mode("dark")
         
         # Barra superior con boton Regresar

@@ -8,7 +8,8 @@ from Cliente.Interfaz.components.header_avatar import HeaderAvatar
 from Cliente.Interfaz.components.ui_helpers import (
     COLOR_PANEL, COLOR_PRIMARIO, COLOR_PRIMARIO_HOVER,
     COLOR_SECUNDARIO, COLOR_SECUNDARIO_HOVER,
-    COLOR_PELIGRO, COLOR_PELIGRO_HOVER, COLOR_TEXTO
+    COLOR_PELIGRO, COLOR_PELIGRO_HOVER, COLOR_TEXTO,
+    adaptar_ventana_ctk
 )
 
 class HubView(ctk.CTk):
@@ -17,8 +18,8 @@ class HubView(ctk.CTk):
         self.controller = controller
         
         self.title("Battle Arena - Menu Principal")
-        self.geometry("480x580")
-        self.resizable(False, False)
+        adaptar_ventana_ctk(self, porcentaje_w=0.40, porcentaje_h=0.70, min_w=480, min_h=580)
+        self.resizable(True, True)
         ctk.set_appearance_mode("dark")
         
         # Barra superior con Avatar y Usuario (Requisito CA-06.5)

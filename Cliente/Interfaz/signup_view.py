@@ -10,7 +10,8 @@ from Cliente.Interfaz.components.ui_helpers import (
     COLOR_PANEL, COLOR_PRIMARIO, COLOR_PRIMARIO_HOVER,
     COLOR_SECUNDARIO, COLOR_SECUNDARIO_HOVER,
     COLOR_EXITO, COLOR_EXITO_HOVER,
-    COLOR_PELIGRO, COLOR_TEXTO
+    COLOR_PELIGRO, COLOR_TEXTO,
+    adaptar_ventana_ctk
 )
 
 # Intentar reutilizar el servicio de autenticacion del Integrante 4
@@ -29,8 +30,8 @@ class SignupView(ctk.CTk):
         self.controller = controller
         
         self.title("Battle Arena - Registro")
-        self.geometry("480x640")
-        self.resizable(False, False)
+        adaptar_ventana_ctk(self, porcentaje_w=0.40, porcentaje_h=0.76, min_w=480, min_h=640)
+        self.resizable(True, True)
         ctk.set_appearance_mode("dark")
         
         self.codigo_generado = None

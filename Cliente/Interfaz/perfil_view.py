@@ -4,7 +4,8 @@ Muestra datos basicos y aviso de modulo en mantenimiento.
 """
 import customtkinter as ctk
 from Cliente.Interfaz.components.ui_helpers import (
-    COLOR_PANEL, COLOR_SECUNDARIO, COLOR_SECUNDARIO_HOVER, COLOR_TEXTO
+    COLOR_PANEL, COLOR_SECUNDARIO, COLOR_SECUNDARIO_HOVER, COLOR_TEXTO,
+    adaptar_ventana_ctk
 )
 
 class PerfilView(ctk.CTk):
@@ -13,8 +14,8 @@ class PerfilView(ctk.CTk):
         self.controller = controller
         
         self.title("Battle Arena - Perfil")
-        self.geometry("480x520")
-        self.resizable(False, False)
+        adaptar_ventana_ctk(self, porcentaje_w=0.38, porcentaje_h=0.64, min_w=480, min_h=520)
+        self.resizable(True, True)
         ctk.set_appearance_mode("dark")
         
         # Barra superior con boton Regresar

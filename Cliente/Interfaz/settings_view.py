@@ -5,7 +5,8 @@ que regresa exactamente a la pantalla desde donde se abrio (Hub o Lobby).
 """
 import customtkinter as ctk
 from Cliente.Interfaz.components.ui_helpers import (
-    COLOR_PANEL, COLOR_EXITO, COLOR_EXITO_HOVER, COLOR_TEXTO
+    COLOR_PANEL, COLOR_EXITO, COLOR_EXITO_HOVER, COLOR_TEXTO,
+    adaptar_ventana_ctk
 )
 
 class SettingsView(ctk.CTk):
@@ -15,8 +16,8 @@ class SettingsView(ctk.CTk):
         self.origen = origen
         
         self.title("Battle Arena - Configuracion de Audio")
-        self.geometry("450x480")
-        self.resizable(False, False)
+        adaptar_ventana_ctk(self, porcentaje_w=0.36, porcentaje_h=0.60, min_w=450, min_h=480)
+        self.resizable(True, True)
         ctk.set_appearance_mode("dark")
         
         frame = ctk.CTkFrame(self, fg_color=COLOR_PANEL, corner_radius=12)

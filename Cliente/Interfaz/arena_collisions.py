@@ -16,7 +16,7 @@ REACTOR_CENTER = (1800, 1300)
 REACTOR_COLLISION_RADIUS = 110
 REACTOR_EXTRACTION_RADIUS = 210
 
-# 4 Plataformas de inicio (Spawn Pads) - Norte, Sur, Oeste, Este
+# 4 Plataformas de inicio (Spawn Pads) ubicadas en los puntos cardinales (Norte, Sur, Oeste, Este)
 SPAWN_POINTS = {
     0: (1800, 260),   # Norte
     1: (1800, 2340),  # Sur
@@ -27,11 +27,17 @@ SPAWN_POINTS = {
 
 def obtener_colisiones_lobby(zona_caminable: pygame.Rect) -> dict[str, list[pygame.Rect] | pygame.Rect]:
     """
-    Genera los muros perimetrales y las 3 zonas interactivas caminables del Lobby
-    pensadas para usarse con Mando (Gamepad):
-    - Centro: Mesa de Comando (Configuracion de Colores, Mapas y Audio).
-    - Derecha: Zona de Despegue (Iniciar Partida hacia la Arena).
-    - Izquierda: Zona de Salida (Volver al Menu Principal).
+    Descripcion:
+        Genera dinamicamente los muros perimetrales y las 3 zonas fisicas interactivas
+        del Lobby Caminable (Mesa de Comando al centro, Despegue a la derecha y Salida
+        a la izquierda) proporcionales al tamano de la zona caminable.
+    Entradas:
+        zona_caminable (pygame.Rect): Rectangulo delimitador del piso caminable del Lobby.
+    Salidas:
+        dict[str, list[pygame.Rect] | pygame.Rect]: Diccionario con las claves 'muros',
+        'bordes', 'mesa', 'zona_interaccion', 'zona_despegue' y 'zona_salida'.
+    Restricciones:
+        zona_caminable debe poseer un ancho y alto positivos mayores a 100 pixeles.
     """
     grosor = max(12, int(zona_caminable.width * 0.02))
     x, y, w, h = zona_caminable.x, zona_caminable.y, zona_caminable.width, zona_caminable.height
@@ -43,7 +49,7 @@ def obtener_colisiones_lobby(zona_caminable: pygame.Rect) -> dict[str, list[pyga
         pygame.Rect(x + w - grosor, y, grosor, h),         # Pared Derecha
     ]
 
-    # 1. Centro: Mesa de Comando
+    # 1. Centro: Mesa de Comando solida y su perimetro de interaccion expandido (inflate)
     mesa_w = int(w * 0.18)
     mesa_h = int(h * 0.18)
     mesa_x = x + (w - mesa_w) // 2
@@ -53,7 +59,7 @@ def obtener_colisiones_lobby(zona_caminable: pygame.Rect) -> dict[str, list[pyga
     margen_interaccion = max(32, int(min(w, h) * 0.08))
     zona_interaccion = mesa_rect.inflate(margen_interaccion * 2, margen_interaccion * 2)
 
-    # 2. Derecha: Plataforma caminable de Despegue (Iniciar Partida)
+    # 2. Derecha: Plataforma caminable de Despegue (Iniciar Partida hacia la Arena)
     pad_w = int(w * 0.21)
     pad_h = int(h * 0.15)
     zona_despegue = pygame.Rect(
@@ -83,9 +89,18 @@ def obtener_colisiones_lobby(zona_caminable: pygame.Rect) -> dict[str, list[pyga
 
 def obtener_muros_arena(tipo_mapa: str = "Estacion Estandar") -> list[pygame.Rect]:
     """
-    Exporta la lista de pygame.Rect que representan los muros exteriores
-    y los bloques de salas/pasillos internos de la Arena de 3600x2600 px.
-    Disenado con corredores amplios para 4 jugadores y patrullaje de guardianes.
+    Descripcion:
+        Construye y exporta la lista de rectangulos de colision (pygame.Rect) que conforman
+        los bordes exteriores y los bloques estructurales internos de la Arena de 3600x2600 px
+        segun la variante de mapa seleccionada por el anfitrion.
+    Entradas:
+        tipo_mapa (str): Nombre de la configuracion del mapa ('Estacion Estandar',
+        'Reactor Inestable' o 'Laberinto Cerrado').
+    Salidas:
+        list[pygame.Rect]: Lista de rectangulos solidos no atravesables por los jugadores.
+    Restricciones:
+        Si tipo_mapa no coincide con una variante especial conocida, retorna la disposicion
+        base de 'Estacion Estandar'.
     """
     grosor_borde = 50
     muros = [
@@ -116,6 +131,7 @@ def obtener_muros_arena(tipo_mapa: str = "Estacion Estandar") -> list[pygame.Rec
         pygame.Rect(2600, 1880, 480, 340),
     ]
 
+    # Se agregan pilares o bloqueos tacticos adicionales segun la variante elegida en el Lobby
     if tipo_mapa == "Reactor Inestable":
         muros.extend([
             pygame.Rect(1420, 960, 110, 110),
@@ -137,15 +153,37 @@ def obtener_muros_arena(tipo_mapa: str = "Estacion Estandar") -> list[pygame.Rec
 
 
 def obtener_hitbox_reactor() -> pygame.Rect:
-    """Devuelve el pygame.Rect de colision solida del Reactor Central."""
+    """
+    Descripcion:
+        Calcula y devuelve el rectangulo delimitador solido (hitbox) del nucleo del
+        Reactor Central ubicado en REACTOR_CENTER.
+    Entradas:
+        Ninguna.
+    Salidas:
+        pygame.Rect: Rectangulo centrado en (1800, 1300) con tamano 2*REACTOR_COLLISION_RADIUS.
+    Restricciones:
+        REACTOR_COLLISION_RADIUS debe ser mayor que cero.
+    """
     r = REACTOR_COLLISION_RADIUS
     return pygame.Rect(REACTOR_CENTER[0] - r, REACTOR_CENTER[1] - r, r * 2, r * 2)
 
 
 def esta_en_zona_extraccion(hitbox_jugador: pygame.Rect) -> bool:
-    """Verifica si el centro del jugador se encuentra dentro del radio de extraccion del Reactor."""
+    """
+    Descripcion:
+        Determina mediante distancia euclidiana si el centro de la hitbox del jugador
+        se encuentra dentro del anillo de extraccion de energia del Reactor Central.
+    Entradas:
+        hitbox_jugador (pygame.Rect): Rectangulo de posicion y tamano actual del jugador.
+    Salidas:
+        bool: True si la distancia al centro del Reactor es menor o igual a REACTOR_EXTRACTION_RADIUS;
+        False en caso contrario.
+    Restricciones:
+        hitbox_jugador debe ser una instancia valida de pygame.Rect.
+    """
     dx = hitbox_jugador.centerx - REACTOR_CENTER[0]
     dy = hitbox_jugador.centery - REACTOR_CENTER[1]
+    # Formula de distancia euclidiana hipotenusa sqrt(dx^2 + dy^2)
     distancia = math.hypot(dx, dy)
     return distancia <= REACTOR_EXTRACTION_RADIUS
 
@@ -158,28 +196,45 @@ def mover_con_colisiones(
     limites: pygame.Rect | None = None,
 ) -> pygame.Rect:
     """
-    Desplaza un pygame.Rect en los ejes X e Y de forma independiente,
-    permitiendo deslizarse suavemente contra las paredes sin atascarse.
+    Descripcion:
+        Aplica el desplazamiento (dx, dy) a un rectangulo evaluando de forma independiente
+        el eje X y el eje Y contra una lista de obstaculos para permitir deslizamiento suave
+        sobre las paredes sin atascos.
+    Entradas:
+        rect (pygame.Rect): Rectangulo original del jugador antes del movimiento.
+        dx (float): Desplazamiento horizontal solicitado en pixeles.
+        dy (float): Desplazamiento vertical solicitado en pixeles.
+        obstaculos (list[pygame.Rect]): Lista de muros y objetos solidos con los que colisionar.
+        limites (pygame.Rect | None): Rectangulo opcional que confina al jugador dentro del mapa.
+    Salidas:
+        pygame.Rect: Nuevo rectangulo con la posicion final corregida tras resolver colisiones.
+    Restricciones:
+        El rectangulo de entrada no debe iniciar solapado dentro de un obstaculo en el eje
+        perpendicular al movimiento.
     """
     nuevo = rect.copy()
 
-    # Movimiento en eje X
-    nuevo.x += int(round(dx))
-    for obs in obstaculos:
-        if nuevo.colliderect(obs):
-            if dx > 0:
-                nuevo.right = obs.left
-            elif dx < 0:
-                nuevo.left = obs.right
+    # Resolucion independiente en el eje X: evita que una colision horizontal bloquee el eje Y
+    step_x = int(round(dx))
+    if step_x != 0:
+        nuevo.x += step_x
+        for obs in obstaculos:
+            if nuevo.colliderect(obs):
+                if step_x > 0:
+                    nuevo.right = obs.left
+                elif step_x < 0:
+                    nuevo.left = obs.right
 
-    # Movimiento en eje Y
-    nuevo.y += int(round(dy))
-    for obs in obstaculos:
-        if nuevo.colliderect(obs):
-            if dy > 0:
-                nuevo.bottom = obs.top
-            elif dy < 0:
-                nuevo.top = obs.bottom
+    # Resolucion independiente en el eje Y: permite deslizarse a lo largo de muros horizontales
+    step_y = int(round(dy))
+    if step_y != 0:
+        nuevo.y += step_y
+        for obs in obstaculos:
+            if nuevo.colliderect(obs):
+                if step_y > 0:
+                    nuevo.bottom = obs.top
+                elif step_y < 0:
+                    nuevo.top = obs.bottom
 
     if limites is not None:
         nuevo.clamp_ip(limites)

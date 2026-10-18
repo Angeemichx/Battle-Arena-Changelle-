@@ -9,9 +9,22 @@ import pygame
 
 
 def hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
+    """
+    Descripcion:
+        Convierte una cadena de color hexadecimal (#RRGGBB) a una tupla de tres enteros
+        RGB compatible con las funciones de dibujo de Pygame.
+    Entradas:
+        hex_color (str): Cadena hexadecimal con o sin el prefijo '#' (ejemplo: '#E63946').
+    Salidas:
+        tuple[int, int, int]: Tupla (R, G, B) con valores enteros en el rango [0, 255].
+    Restricciones:
+        Si la cadena limpia no tiene exactamente 6 caracteres hexadecimales, retorna
+        por defecto el color rojo de seguridad (230, 57, 70).
+    """
     hex_color = hex_color.lstrip("#")
     if len(hex_color) != 6:
         return (230, 57, 70)
+    # Se extraen pares de caracteres hexadecimales en base 16 para cada canal de color
     return tuple(int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
 
 
@@ -22,9 +35,22 @@ def dibujar_hud_lobby(
     avatar_img_surface: pygame.Surface | None = None,
 ) -> dict[str, pygame.Rect]:
     """
-    Dibuja la barra superior informativa del Lobby adaptada al tamano de la ventana.
+    Descripcion:
+        Renderiza la barra informativa superior del Lobby Caminable escalada a la resolucion
+        actual, mostrando el mini-avatar del jugador local, su rol/IP y el conteo de jugadores.
+    Entradas:
+        surface (pygame.Surface): Superficie principal de la ventana Pygame donde se dibuja el HUD.
+        controller (AppController): Instancia del controlador maestro con los datos de sesion y red.
+        jugadores (list[dict]): Lista de diccionarios con los jugadores conectados a la sala.
+        avatar_img_surface (pygame.Surface | None): Imagen personalizada del avatar local si fue cargada.
+    Salidas:
+        dict[str, pygame.Rect]: Diccionario vacio (mantenido por compatibilidad de firma de renderizado).
+    Restricciones:
+        pygame.font debe estar inicializado antes de invocar esta funcion; surface debe tener
+        dimensiones mayores a 0.
     """
     w, h = surface.get_size()
+    # Factores de escala proporcionales respecto a una resolucion base de 1280x720
     sx = w / 1280.0
     sy = h / 720.0
 
@@ -59,7 +85,7 @@ def dibujar_hud_lobby(
     surface.blit(lbl_user, (av_rect.right + int(12 * sx), av_y))
     surface.blit(lbl_rol, (av_rect.right + int(12 * sx), av_y + lbl_user.get_height() + 2))
 
-    # 2. Centro: Indicador de Estado de Sala (CA-09.3)
+    # 2. Centro: Indicador de Estado de Sala (CA-09.3: verde si hay >= 2 jugadores, amarillo si falta gente)
     num_jug = len(jugadores)
     listo = num_jug >= 2
     color_estado = (42, 157, 143) if listo else (233, 196, 106)
@@ -85,11 +111,24 @@ def dibujar_hud_arena(
     avatar_img_surface: pygame.Surface | None = None,
 ) -> dict[str, pygame.Rect]:
     """
-    Dibuja el HUD fijo sobre la camara de la Arena:
-    - Mini-avatar del jugador local arriba a la izquierda (CA-06.5)
-    - Temporizador central en formato MM:SS (CA-09.9)
-    - Tarjetas de puntaje de los jugadores (CA-15.2)
-    - Mini-radar en tiempo real en la esquina inferior derecha
+    Descripcion:
+        Dibuja el HUD fijo sobre la camara de la Arena de Batalla, incluyendo el mini-avatar
+        local (CA-06.5), el temporizador central en formato MM:SS (CA-09.9), las tarjetas
+        de puntaje en vivo (CA-15.2) y el mini-radar proporcional en la esquina inferior derecha.
+    Entradas:
+        surface (pygame.Surface): Superficie de la pantalla donde se renderizan los elementos del HUD.
+        controller (AppController): Instancia del controlador maestro con usuario y mapa activo.
+        jugadores (list[dict]): Lista de hasta 4 diccionarios con estado, color, posicion y puntaje.
+        tiempo_restante (float): Segundos restantes del reloj de la partida.
+        world_size (tuple[int, int]): Dimensiones totales del mundo (WORLD_WIDTH, WORLD_HEIGHT).
+        muros_mundo (list[pygame.Rect]): Lista de rectangulos de colision para proyectar en el mini-radar.
+        reactor_center (tuple[int, int]): Coordenada (x, y) del Reactor Central en el mundo.
+        avatar_img_surface (pygame.Surface | None): Imagen de avatar personalizada o None.
+    Salidas:
+        dict[str, pygame.Rect]: Diccionario vacio reservado para zonas del HUD.
+    Restricciones:
+        world_size debe contener valores mayores a cero para evitar division por cero al
+        calcular la escala del mini-radar.
     """
     w, h = surface.get_size()
     sx = w / 1280.0
@@ -123,7 +162,7 @@ def dibujar_hud_arena(
     surface.blit(lbl_u, (av_rect.right + int(10 * sx), panel_local.y + int(6 * sy)))
     surface.blit(lbl_m, (av_rect.right + int(10 * sx), panel_local.y + int(28 * sy)))
 
-    # 2. Centro Superior: Temporizador (CA-09.9)
+    # 2. Centro Superior: Temporizador (cambia a color rojo cuando quedan 30 segundos o menos)
     timer_w = max(140, int(170 * sx))
     timer_h = max(42, int(50 * sy))
     timer_rect = pygame.Rect(w // 2 - timer_w // 2, int(14 * sy), timer_w, timer_h)
@@ -162,7 +201,7 @@ def dibujar_hud_arena(
         surf_j = font_small.render(txt_j, True, (255, 255, 255))
         surface.blit(surf_j, (dot.right + int(8 * sx), c_rect.centery - surf_j.get_height() // 2))
 
-    # 4. Esquina Inferior Derecha: Mini-Radar en Vivo
+    # 4. Esquina Inferior Derecha: Mini-Radar en Vivo (proyeccion a escala del mundo 3600x2600)
     radar_w = max(160, int(210 * sx))
     radar_h = max(112, int(145 * sy))
     radar_rect = pygame.Rect(w - radar_w - int(16 * sx), h - radar_h - int(16 * sy), radar_w, radar_h)
@@ -181,12 +220,12 @@ def dibujar_hud_arena(
         )
         pygame.draw.rect(surface, (55, 62, 78), m_rect)
 
-    # Reactor en el radar
+    # Reactor Central proyectado en el radar
     rc_x = radar_rect.x + int(reactor_center[0] * rx_scale)
     rc_y = radar_rect.y + int(reactor_center[1] * ry_scale)
     pygame.draw.circle(surface, (0, 210, 255), (rc_x, rc_y), max(4, int(8 * sy)))
 
-    # Jugadores en el radar
+    # Posicion de cada jugador proyectada en el radar con el color de su hitbox
     for jug in jugadores:
         r_rect = jug["rect"]
         jx = radar_rect.x + int(r_rect.centerx * rx_scale)

@@ -1,12 +1,14 @@
 """
-Vista de la Arena de Batalla en Pygame (US-07, US-14, US-15).
+Vista de la Arena de Batalla en Pygame (US-07, US-14, US-15, US-16, US-17).
 - Mapa amplio de 3600x2600 px pensado para 4 jugadores y guardianes, con camara centrada (Camera Follow).
 - Se adapta dinamicamente al tamano de la ventana del computador.
 - Reactor Central en (1800, 1300) y 4 plataformas de Spawn (Norte, Sur, Oeste, Este).
+- Parametros configurables desde el Lobby (Tiempo de Partida y Meta de Puntos).
 - Sistema de puntuacion por segundos:
   * Contador de segundos en movimiento: cada 1 segundo en movimiento multiplica por 10 (+10 pts/seg).
   * Contador de segundos extrayendo en el Reactor: cada 1 segundo extrayendo suma 40 (+40 pts/seg).
-- Feedback funcional del 5to boton de accion (aro del color de la hitbox + [EXTRAYENDO]).
+- Condicion de Victoria y Desempate Automatico (US-16 / CA-16.4: +2 minutos si hay empate en el 1er lugar).
+- Pantalla de Victoria (US-17) con avatar ganador, tabla de posiciones y retorno al Lobby con mando (Command.ACTION).
 """
 from __future__ import annotations
 import os
@@ -29,10 +31,21 @@ from Cliente.Interfaz.arena_collisions import (
     obtener_hitbox_reactor,
     obtener_muros_arena,
 )
-from Cliente.Interfaz.components.hud import dibujar_hud_arena, hex_to_rgb
+from Cliente.Interfaz.Components.hud import dibujar_hud_arena, hex_to_rgb
 
 
 def _cargar_imagen_avatar(ruta: str | None) -> pygame.Surface | None:
+    """
+    Descripcion:
+        Carga desde disco la imagen personalizada del avatar del jugador local y la
+        convierte al formato con canal alfa de Pygame.
+    Entradas:
+        ruta (str | None): Ruta del archivo de imagen (.png/.jpg/.bmp) o None.
+    Salidas:
+        pygame.Surface | None: Superficie de Pygame lista para dibujar o None si falla la carga.
+    Restricciones:
+        Requiere que el modo de video de Pygame ya haya sido inicializado.
+    """
     if not ruta or not os.path.exists(ruta):
         return None
     try:
@@ -41,11 +54,61 @@ def _cargar_imagen_avatar(ruta: str | None) -> pygame.Surface | None:
         return None
 
 
-def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None):
+def evaluar_condicion_victoria(
+    jugadores: list[dict],
+    tiempo_restante: float,
+    puntos_meta: int,
+) -> tuple[bool, dict | None, bool, float]:
     """
-    Ejecuta el bucle principal de la Arena en Pygame (mapa 3600x2600 px) con camara dinamica,
-    colisiones de muros, Reactor Central y puntuacion exacta por segundo en movimiento (x10)
-    y segundo de extraccion en el Reactor (x40).
+    Descripcion:
+        Evalua en cada fotograma si la partida debe concluir por alcanzarse la meta de
+        puntos o por agotamiento del reloj (US-16), aplicando el desempate automatico
+        de +2 minutos (120 segundos) cuando existe empate en el primer lugar (CA-16.4).
+    Entradas:
+        jugadores (list[dict]): Lista de diccionarios de los jugadores con su clave 'puntos'.
+        tiempo_restante (float): Segundos restantes en el temporizador de la partida.
+        puntos_meta (int): Puntaje objetivo para ganar la partida (por defecto 500 pts).
+    Salidas:
+        tuple[bool, dict | None, bool, float]: Tupla con (partida_terminada, jugador_ganador,
+        hubo_desempate, nuevo_tiempo_restante).
+    Restricciones:
+        Si la lista jugadores esta vacia, retorna (False, None, False, tiempo_restante).
+    """
+    if not jugadores:
+        return False, None, False, tiempo_restante
+
+    alguien_alcanzo_meta = any(j.get("puntos", 0) >= puntos_meta for j in jugadores)
+    tiempo_agotado = tiempo_restante <= 0.0
+
+    if not alguien_alcanzo_meta and not tiempo_agotado:
+        return False, None, False, tiempo_restante
+
+    max_pts = max(j.get("puntos", 0) for j in jugadores)
+    lideres = [j for j in jugadores if j.get("puntos", 0) == max_pts]
+
+    # Regla CA-16.4: Si 2 o mas jugadores empatan en el puntaje maximo, se otorgan +120s de desempate
+    if len(lideres) > 1:
+        nuevo_tiempo = max(tiempo_restante, 0.0) + 120.0
+        return False, None, True, nuevo_tiempo
+
+    return True, lideres[0], False, tiempo_restante
+
+
+def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> None:
+    """
+    Descripcion:
+        Ejecuta el bucle principal de la Arena de Batalla (mundo de 3600x2600 px) con
+        seguimiento de camara (Camera Follow), colisiones contra muros y Reactor Central,
+        acumulacion de puntaje por segundo en movimiento (+10 pts/s) y extraccion en el
+        Reactor (+40 pts/s), y renderizado de la Pantalla de Victoria (US-17).
+    Entradas:
+        controller (AppController): Instancia del controlador maestro con parametros y red.
+        screen (pygame.Surface | None): Superficie de ventana Pygame activa o None para crearla.
+    Salidas:
+        None: Al finalizar y pulsar volver al Lobby, transfiere el control a iniciar_lobby_pygame.
+    Restricciones:
+        Exige soltar fisicamente el boton de accion (Command.ACTION) antes de aceptar la
+        orden de salir de la Pantalla de Victoria hacia el Lobby.
     """
     pygame.init()
 
@@ -63,6 +126,8 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None):
 
     # Reutilizar InputManager del Integrante 2
     input_manager = create_default_input_manager(allow_keyboard_fallback=True)
+    comandos_previos: set[Command] = set(input_manager.poll())
+    esperando_soltar_accion: bool = Command.ACTION in comandos_previos
 
     # Lienzo completo del mundo (3600 x 2600 px)
     world_surface = pygame.Surface((WORLD_WIDTH, WORLD_HEIGHT))
@@ -115,9 +180,17 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None):
     jugador_local = jugadores[0]
     avatar_img_surface = _cargar_imagen_avatar(controller.avatar_imagen)
 
-    # Temporizador de 5 minutos (300 segundos) - CA-09.9
-    tiempo_restante = 300.0
+    # Parametros de partida configurados en el Lobby (US-09 / US-16)
+    tiempo_partida_min = int(getattr(controller, "tiempo_partida_min", 3))
+    puntos_meta = int(getattr(controller, "puntos_meta", 500))
+    tiempo_restante = float(tiempo_partida_min * 60)
     velocidad_jugador = 7.0
+
+    # Estado de Victoria y Desempate (US-16 / US-17)
+    partida_finalizada = False
+    jugador_ganador: dict | None = None
+    banner_desempate_timer = 0.0
+    rondas_desempate = 0
 
     font_nombre = pygame.font.SysFont("Segoe UI", 14, bold=True)
     font_accion = pygame.font.SysFont("Segoe UI", 13, bold=True)
@@ -125,71 +198,112 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None):
 
     corriendo = True
     accion_salida = None  # "lobby" | "cerrar"
+    btn_volver_victoria_rect: pygame.Rect | None = None
 
     while corriendo:
         dt = clock.tick(60) / 1000.0
-        tiempo_restante = max(0.0, tiempo_restante - dt)
-
         w, h = screen.get_size()
+        sx = w / 1280.0
+        sy = h / 720.0
 
-        # =====================================================================
-        # 1. ENTRADA DEL JUGADOR Y CONTADORES DE SEGUNDOS (MOVIMIENTO x10 / REACTOR x40)
-        # =====================================================================
-        comandos = input_manager.poll()
-        accion_activa = Command.ACTION in comandos
-        jugador_local["extrayendo"] = accion_activa
+        comandos_actuales = input_manager.poll()
+        if esperando_soltar_accion:
+            if Command.ACTION not in comandos_actuales:
+                esperando_soltar_accion = False
+            comandos_nuevos = (comandos_actuales - comandos_previos) - {Command.ACTION}
+        else:
+            comandos_nuevos = comandos_actuales - comandos_previos
+        comandos_previos = set(comandos_actuales)
 
-        if not accion_activa:
-            dx_unit, dy_unit = direction_from(comandos)
-            if dx_unit != 0 or dy_unit != 0:
-                pos_previa = jugador_local["rect"].topleft
-                jugador_local["rect"] = mover_con_colisiones(
-                    jugador_local["rect"],
-                    dx_unit * velocidad_jugador,
-                    dy_unit * velocidad_jugador,
-                    obstaculos_totales,
-                    limites_mundo,
-                )
-                # Si el jugador se desplazo efectivamente, contar el tiempo en movimiento
-                if jugador_local["rect"].topleft != pos_previa:
-                    jugador_local["acum_mov"] += dt
-                    while jugador_local["acum_mov"] >= 1.0:
-                        jugador_local["acum_mov"] -= 1.0
-                        jugador_local["segundos_movimiento"] += 1
+        if not partida_finalizada:
+            tiempo_restante = max(0.0, tiempo_restante - dt)
+            if banner_desempate_timer > 0.0:
+                banner_desempate_timer = max(0.0, banner_desempate_timer - dt)
+
+            # =====================================================================
+            # 1. ENTRADA DEL JUGADOR Y CONTADORES DE SEGUNDOS (MOV x10 / REACTOR x40)
+            # =====================================================================
+            accion_activa = (Command.ACTION in comandos_actuales) and (not esperando_soltar_accion)
+            jugador_local["extrayendo"] = accion_activa
+
+            if not accion_activa:
+                dx_unit, dy_unit = direction_from(comandos_actuales)
+                if dx_unit != 0 or dy_unit != 0:
+                    pos_previa = jugador_local["rect"].topleft
+                    jugador_local["rect"] = mover_con_colisiones(
+                        jugador_local["rect"],
+                        dx_unit * velocidad_jugador,
+                        dy_unit * velocidad_jugador,
+                        obstaculos_totales,
+                        limites_mundo,
+                    )
+                    # Si el jugador se desplazo efectivamente, contar el tiempo en movimiento
+                    if jugador_local["rect"].topleft != pos_previa:
+                        jugador_local["acum_mov"] += dt
+                        while jugador_local["acum_mov"] >= 1.0:
+                            jugador_local["acum_mov"] -= 1.0
+                            jugador_local["segundos_movimiento"] += 1
+                            jugador_local["puntos"] = (
+                                jugador_local["segundos_movimiento"] * 10
+                                + jugador_local["segundos_reactor"] * 40
+                            )
+                        controller.enviar_movimiento_red(dx_unit, dy_unit)
+            else:
+                controller.enviar_accion_red("[EXTRAYENDO]")
+                # Si mantiene presionado el 5to boton dentro de la zona del Reactor, suma 40 pts por cada segundo
+                if esta_en_zona_extraccion(jugador_local["rect"]):
+                    jugador_local["acum_reactor"] += dt
+                    while jugador_local["acum_reactor"] >= 1.0:
+                        jugador_local["acum_reactor"] -= 1.0
+                        jugador_local["segundos_reactor"] += 1
                         jugador_local["puntos"] = (
                             jugador_local["segundos_movimiento"] * 10
                             + jugador_local["segundos_reactor"] * 40
                         )
-                    controller.enviar_movimiento_red(dx_unit, dy_unit)
-        else:
-            controller.enviar_accion_red("[EXTRAYENDO]")
-            # Si mantiene presionado el 5to boton dentro de la zona del Reactor, suma 40 pts por cada segundo
-            if esta_en_zona_extraccion(jugador_local["rect"]):
-                jugador_local["acum_reactor"] += dt
-                while jugador_local["acum_reactor"] >= 1.0:
-                    jugador_local["acum_reactor"] -= 1.0
-                    jugador_local["segundos_reactor"] += 1
-                    jugador_local["puntos"] = (
-                        jugador_local["segundos_movimiento"] * 10
-                        + jugador_local["segundos_reactor"] * 40
-                    )
 
-        # Sincronizar posiciones/acciones de otros jugadores si el servidor TCP esta activo
-        if getattr(controller, "estado_partida_red", None):
-            import time
-            ahora = time.time()
-            with controller.estado_red_lock:
-                remotos = controller.estado_partida_red.get("jugadores", [])
-                for idx_r, datos_r in enumerate(remotos):
-                    if idx_r < len(jugadores) and not jugadores[idx_r]["es_local"]:
-                        jugadores[idx_r]["nombre"] = datos_r.get("nombre", jugadores[idx_r]["nombre"])
-                        jugadores[idx_r]["puntos"] = int(datos_r.get("puntaje", jugadores[idx_r]["puntos"]))
-                        rx_rem = datos_r.get("x")
-                        ry_rem = datos_r.get("y")
-                        if rx_rem is not None and ry_rem is not None and (rx_rem != 0 or ry_rem != 0):
-                            jugadores[idx_r]["rect"].topleft = (int(rx_rem), int(ry_rem))
-                        id_rem = int(datos_r.get("id", idx_r + 1))
-                        jugadores[idx_r]["extrayendo"] = controller.acciones_remotas.get(id_rem, 0) > ahora
+            # Sincronizar posiciones/acciones de otros jugadores si el servidor TCP esta activo
+            if getattr(controller, "estado_partida_red", None):
+                import time
+                ahora = time.time()
+                with controller.estado_red_lock:
+                    remotos = controller.estado_partida_red.get("jugadores", [])
+                    for idx_r, datos_r in enumerate(remotos):
+                        if idx_r < len(jugadores) and not jugadores[idx_r]["es_local"]:
+                            jugadores[idx_r]["nombre"] = datos_r.get("nombre", jugadores[idx_r]["nombre"])
+                            jugadores[idx_r]["puntos"] = int(datos_r.get("puntaje", jugadores[idx_r]["puntos"]))
+                            rx_rem = datos_r.get("x")
+                            ry_rem = datos_r.get("y")
+                            if rx_rem is not None and ry_rem is not None and (rx_rem != 0 or ry_rem != 0):
+                                jugadores[idx_r]["rect"].topleft = (int(rx_rem), int(ry_rem))
+                            id_rem = int(datos_r.get("id", idx_r + 1))
+                            jugadores[idx_r]["extrayendo"] = controller.acciones_remotas.get(id_rem, 0) > ahora
+
+            # Evaluar Condicion de Victoria y Desempate Automatico (US-16 / CA-16.4)
+            terminada, ganador, hubo_desempate, nuevo_t = evaluar_condicion_victoria(
+                jugadores, tiempo_restante, puntos_meta
+            )
+            if hubo_desempate:
+                tiempo_restante = nuevo_t
+                rondas_desempate += 1
+                banner_desempate_timer = 5.0
+                # Si empataron en la meta de puntos, incrementar la meta para el desempate
+                max_pts_actual = max(j.get("puntos", 0) for j in jugadores)
+                if max_pts_actual >= puntos_meta:
+                    puntos_meta = max_pts_actual + 80
+            elif terminada and ganador is not None:
+                partida_finalizada = True
+                jugador_ganador = ganador
+                jugador_local["extrayendo"] = False
+                # Si el jugador venia manteniendo presionado el boton de accion en el Reactor,
+                # exigir que lo suelte y lo vuelva a presionar para salir de la Pantalla de Victoria
+                if Command.ACTION in comandos_actuales:
+                    esperando_soltar_accion = True
+        else:
+            # En la Pantalla de Victoria, el 5to boton del mando (Command.ACTION) regresa al Lobby
+            # unicamente tras haber soltado el boton y volverlo a presionar
+            if Command.ACTION in comandos_nuevos:
+                accion_salida = "lobby"
+                corriendo = False
 
         # =====================================================================
         # 2. RENDERIZADO DEL LIENZO DEL MUNDO (3600 x 2600 px)
@@ -285,7 +399,7 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None):
         # =====================================================================
         # 4. HUD FIJO SOBRE LA CAMARA (TEMPORIZADOR, AVATAR Y MINI-RADAR)
         # =====================================================================
-        rects_hud = dibujar_hud_arena(
+        dibujar_hud_arena(
             screen,
             controller,
             jugadores,
@@ -296,17 +410,30 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None):
             avatar_img_surface,
         )
 
-        # Panel inferior izquierdo con el desglose en vivo de los segundos y puntos
-        sx = w / 1280.0
-        sy = h / 720.0
+        # Banner de Desempate Automatico (+2 min - CA-16.4)
+        if banner_desempate_timer > 0.0:
+            font_des = pygame.font.SysFont("Segoe UI", max(14, int(17 * sy)), bold=True)
+            txt_des = "EMPATE EN 1ER LUGAR DETECTADO (CA-16.4): +2 MINUTOS DE DESEMPATE AUTOMATICO"
+            lbl_des = font_des.render(txt_des, True, (255, 255, 255))
+            des_rect = pygame.Rect(
+                w // 2 - (lbl_des.get_width() + int(36 * sx)) // 2,
+                int(88 * sy),
+                lbl_des.get_width() + int(36 * sx),
+                int(44 * sy),
+            )
+            pygame.draw.rect(screen, (180, 95, 20), des_rect, border_radius=8)
+            pygame.draw.rect(screen, (255, 210, 110), des_rect, 2, border_radius=8)
+            screen.blit(lbl_des, (des_rect.centerx - lbl_des.get_width() // 2, des_rect.centery - lbl_des.get_height() // 2))
+
+        # Panel inferior izquierdo con el desglose en vivo de los segundos, puntos y meta
         font_guia = pygame.font.SysFont("Segoe UI", max(11, int(13 * sy)), bold=True)
         seg_mov = jugador_local["segundos_movimiento"]
         seg_reac = jugador_local["segundos_reactor"]
         pts_tot = jugador_local["puntos"]
         texto_contador = (
-            f"Tiempo Movimiento: {seg_mov}s (x10 = {seg_mov * 10} pts)  |  "
-            f"Tiempo Reactor: {seg_reac}s (x40 = {seg_reac * 40} pts)  |  "
-            f"TOTAL: {pts_tot} pts"
+            f"Mov: {seg_mov}s (x10 = {seg_mov * 10} pts)  |  "
+            f"Reactor: {seg_reac}s (x40 = {seg_reac * 40} pts)  |  "
+            f"TOTAL: {pts_tot} / {puntos_meta} pts (META)  |  [F4] +50 pts (Prueba)"
         )
         lbl_guia = font_guia.render(texto_contador, True, (233, 196, 106))
         guia_bg = pygame.Rect(int(16 * sx), h - int(44 * sy), lbl_guia.get_width() + 24, int(32 * sy))
@@ -315,7 +442,96 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None):
         screen.blit(lbl_guia, (guia_bg.x + 12, guia_bg.centery - lbl_guia.get_height() // 2))
 
         # =====================================================================
-        # 5. EVENTOS DE VENTANA
+        # 5. PANTALLA DE VICTORIA (US-17) CON NAVEGACION POR MANDO
+        # =====================================================================
+        btn_volver_victoria_rect = None
+        if partida_finalizada and jugador_ganador is not None:
+            overlay = pygame.Surface((w, h), pygame.SRCALPHA)
+            overlay.fill((8, 10, 16, 220))
+            screen.blit(overlay, (0, 0))
+
+            mw = min(w - 40, int(740 * sx))
+            mh = min(h - 40, int(520 * sy))
+            modal_rect = pygame.Rect(w // 2 - mw // 2, h // 2 - mh // 2, mw, mh)
+            pygame.draw.rect(screen, (22, 27, 38), modal_rect, border_radius=14)
+            pygame.draw.rect(screen, (233, 196, 106), modal_rect, 3, border_radius=14)
+
+            f_vic_title = pygame.font.SysFont("Segoe UI", max(20, int(28 * sy)), bold=True)
+            f_vic_sub = pygame.font.SysFont("Segoe UI", max(14, int(18 * sy)), bold=True)
+            f_vic_row = pygame.font.SysFont("Segoe UI", max(12, int(15 * sy)), bold=True)
+
+            t_vic = f_vic_title.render("PARTIDA FINALIZADA - PANTALLA DE VICTORIA", True, (233, 196, 106))
+            screen.blit(t_vic, (modal_rect.centerx - t_vic.get_width() // 2, modal_rect.y + int(22 * sy)))
+
+            # Avatar y Felicitacion del Ganador (CA-17.1 y CA-17.2)
+            av_size = int(68 * sy)
+            av_rect = pygame.Rect(modal_rect.centerx - av_size // 2, modal_rect.y + int(68 * sy), av_size, av_size)
+            ganador_rgb = hex_to_rgb(jugador_ganador.get("color", "#E63946"))
+            if jugador_ganador.get("es_local") and avatar_img_surface is not None:
+                scaled_g = pygame.transform.smoothscale(avatar_img_surface, (av_size, av_size))
+                screen.blit(scaled_g, av_rect)
+            else:
+                pygame.draw.rect(screen, ganador_rgb, av_rect, border_radius=10)
+            pygame.draw.rect(screen, (255, 255, 255), av_rect, 3, border_radius=10)
+
+            msg_fel = f"FELICIDADES {jugador_ganador['nombre'].upper()} - CAMPEON DE LA ARENA ({jugador_ganador['puntos']} PTS)"
+            lbl_fel = f_vic_sub.render(msg_fel, True, (110, 235, 160))
+            screen.blit(lbl_fel, (modal_rect.centerx - lbl_fel.get_width() // 2, av_rect.bottom + int(12 * sy)))
+
+            # Tabla de Posiciones Ordenada (CA-17.3)
+            ranking = sorted(jugadores, key=lambda item: item.get("puntos", 0), reverse=True)
+            tabla_y = av_rect.bottom + int(50 * sy)
+            row_h = int(46 * sy)
+            for pos_idx, jug_r in enumerate(ranking):
+                r_rect = pygame.Rect(
+                    modal_rect.x + int(42 * sx),
+                    tabla_y + pos_idx * (row_h + int(8 * sy)),
+                    modal_rect.width - int(84 * sx),
+                    row_h,
+                )
+                es_primero = pos_idx == 0
+                bg_row = (36, 52, 46) if es_primero else (30, 35, 48)
+                borde_row = (42, 157, 143) if es_primero else (65, 75, 95)
+                pygame.draw.rect(screen, bg_row, r_rect, border_radius=8)
+                pygame.draw.rect(screen, borde_row, r_rect, 2 if es_primero else 1, border_radius=8)
+
+                swatch = pygame.Rect(r_rect.x + int(14 * sx), r_rect.centery - int(12 * sy), int(24 * sx), int(24 * sy))
+                pygame.draw.rect(screen, hex_to_rgb(jug_r["color"]), swatch, border_radius=4)
+                pygame.draw.rect(screen, (255, 255, 255), swatch, 1, border_radius=4)
+
+                txt_pos = f"#{pos_idx + 1}   {jug_r['nombre']} ({jug_r['color_nombre']})"
+                lbl_pos = f_vic_row.render(txt_pos, True, (255, 255, 255))
+                screen.blit(lbl_pos, (swatch.right + int(14 * sx), r_rect.centery - lbl_pos.get_height() // 2))
+
+                txt_pts_r = f"{jug_r['puntos']} PTS"
+                lbl_pts_r = f_vic_row.render(txt_pts_r, True, (233, 196, 106) if es_primero else (195, 205, 225))
+                screen.blit(
+                    lbl_pts_r,
+                    (r_rect.right - lbl_pts_r.get_width() - int(18 * sx), r_rect.centery - lbl_pts_r.get_height() // 2),
+                )
+
+            # Boton Volver al Lobby (CA-17.4 - accionable con mando o clic)
+            btn_w = int(460 * sx)
+            btn_h = int(46 * sy)
+            btn_volver_victoria_rect = pygame.Rect(
+                modal_rect.centerx - btn_w // 2,
+                modal_rect.bottom - btn_h - int(20 * sy),
+                btn_w,
+                btn_h,
+            )
+            pygame.draw.rect(screen, (42, 157, 143), btn_volver_victoria_rect, border_radius=8)
+            pygame.draw.rect(screen, (255, 255, 255), btn_volver_victoria_rect, 2, border_radius=8)
+            lbl_btn_v = f_vic_row.render("VOLVER AL LOBBY [5to Boton Mando / Espacio / Enter]", True, (255, 255, 255))
+            screen.blit(
+                lbl_btn_v,
+                (
+                    btn_volver_victoria_rect.centerx - lbl_btn_v.get_width() // 2,
+                    btn_volver_victoria_rect.centery - lbl_btn_v.get_height() // 2,
+                ),
+            )
+
+        # =====================================================================
+        # 6. EVENTOS DE VENTANA
         # =====================================================================
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -325,6 +541,13 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None):
                 screen = pygame.display.set_mode((max(800, event.w), max(540, event.h)), pygame.RESIZABLE)
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
+                    accion_salida = "lobby"
+                    corriendo = False
+                elif event.key == pygame.K_F4 and not partida_finalizada:
+                    # Atajo de prueba local para alcanzar rapidamente la meta de puntos
+                    jugador_local["puntos"] += 50
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                if partida_finalizada and btn_volver_victoria_rect and btn_volver_victoria_rect.collidepoint(event.pos):
                     accion_salida = "lobby"
                     corriendo = False
 

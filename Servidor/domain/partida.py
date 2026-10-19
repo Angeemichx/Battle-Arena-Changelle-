@@ -54,17 +54,12 @@ class Partida:
             puntajes = [j.puntaje for j in self.jugadores.values()]
             print(f"[PARTIDA] Tiempo terminado. Puntajes: {puntajes}")
 
-            if self.en_tiempo_extra:
-                # Si el tiempo extra se acabó, declaramos ganador *Cambiar para sprint 3
-                print("[PARTIDA] Fin del tiempo extra.")
-                self._declarar_ganador()
-                return
-            
+            #Cada vez que haya empate se agrega tiempo extra de 2 minutos hasta que haya un ganador            
             if len(puntajes) >= 2 and puntajes[0] == puntajes[1]:
                 # Hay empate en tiempo normal
                 print("[PARTIDA] ¡Empate! Iniciando tiempo extra de 2 minutos.")
                 self.en_tiempo_extra = True
-                self.tiempo_limite_segundos = 120 # 2 minutos
+                self.tiempo_limite_segundos = 1 # 2 minutos
                 self.tiempo_inicio = time.time()  # Reiniciamos el reloj
                 self.activa = True                # Aseguramos que siga activa
             else:

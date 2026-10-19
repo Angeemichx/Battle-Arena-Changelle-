@@ -16,6 +16,7 @@ class ServidorJuego:
         self.socket_servidor = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket_servidor.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.clientes={}
+        self.sesiones = {}
         self.lock = threading.Lock()
         self.partida = Partida(id_partida="partida_1", limite_puntos=50)
         self.siguiente_id = 1 
@@ -102,6 +103,7 @@ class ServidorJuego:
                         del self.clientes[id_jugador]
                     if id_jugador in self.partida.jugadores:
                         del self.partida.jugadores[id_jugador]
+                    self.sesiones.pop(id_jugador, None)
 
                 try:
                     socket_cliente.close()
@@ -155,6 +157,7 @@ class ServidorJuego:
 	#Manejo de la autentificación
 
         elif accion:
+            sesion = self.sesiones.setdefault(id_jugador, {})
             with self.lock:
                 respuesta = self.manejar(mensaje, {})
             self._enviar_a(self.clientes.get(id_jugador), respuesta)

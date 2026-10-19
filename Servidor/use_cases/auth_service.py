@@ -10,7 +10,7 @@ EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 class AuthService:
     def __init__(self, repo):
-        self.repo = repo       
+        self.repo = repo
 
     def registrar(self, email: str, username: str, password: str) -> dict:
         email = email.strip().lower()
@@ -23,9 +23,8 @@ class AuthService:
         if not username:
             return {"ok": False, "msg": "Usuario requerido"}
 
-        # evita que dos registros iguales se crucen
         with self.repo.lock:
-            if self.repo.get_by_email(email) or self.repo.username_exists(username):
+            if self.repo._email(email) or self.repo.user_exists(username):
                 return {"ok": False, "msg": "Correo o usuario ya registrado"}
 
             codigo = f"{secrets.randbelow(10**6):06d}"
@@ -40,6 +39,26 @@ class AuthService:
             self.repo.save(cuenta)
 
         return {"ok": True, "msg": "Cuenta creada", "codigo": codigo}
+
+    def verificar(self, email: str, codigo: str) -> dict:
+        email = email.strip().lower()
+        with self.repo.lock:
+            c = self.repo._email(email)
+            if (not c or c.verify_code != codigo or not c.verify_expires
+                    or datetime.fromisoformat(c.verify_expires) < datetime.utcnow()):
+                return {"ok": False, "msg": "Código inválido o expirado"}
+            c.verified, c.verify_code, c.verify_expires = True, None, None
+            self.repo.save(c)
+        return {"ok": True, "msg": "Correo verificado"}
+
+    def login(self, email: str, password: str) -> dict:
+        email = email.strip().lower()
+        c = self.repo._email(email)
+        if not c or not bcrypt.checkpw(password.encode(), c.password_hash.encode()):
+            return {"ok": False, "msg": "Credenciales incorrectas"}
+        if not c.verified:
+            return {"ok": False, "msg": "Debes verificar tu correo primero"}
+        return {"ok": True, "msg": "Bienvenido", "email": email}
 
     @staticmethod
     def _password_valida(p: str) -> bool:

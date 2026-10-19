@@ -1,0 +1,32 @@
+{
+  "prueba@correo.com": {
+    "username": "prueba",
+    "password_hash": "xxx",
+    "verified": false,
+    "verify_code": null,
+    "verify_expires": null,
+    "reset_code": null,
+    "reset_expires": null,
+    "created_at": ""
+  },
+  "adalboni05@gmail.com": {
+    "username": "Admin 1",
+    "password_hash": "$2b$12$HdQCfdJIePBVsEzPE6xmI.dRAuMHH7oi2uUBzYUtGuSUYj5XyMaom",
+    "verified": true,
+    "verify_code": null,
+    "verify_expires": null,
+    "reset_code": null,
+    "reset_expires": null,
+    "created_at": "2026-10-18T09:00:19.341420"
+  },
+  "victoriaanaaraya@gmail.com": {
+    "username": "Ana",
+    "password_hash": "$2b$12$gi3jUYrO28jrtyzSubxuH.maoaeyzHS3DtBmsuwCAhcyQjP1QL63i",
+    "verified": true,
+    "verify_code": null,
+    "verify_expires": null,
+    "reset_code": null,
+    "reset_expires": null,
+    "created_at": "2026-10-19T21:53:54.414302"
+  }
+}

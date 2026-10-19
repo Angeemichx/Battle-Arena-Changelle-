@@ -59,7 +59,7 @@ class Partida:
                 # Hay empate en tiempo normal
                 print("[PARTIDA] ¡Empate! Iniciando tiempo extra de 2 minutos.")
                 self.en_tiempo_extra = True
-                self.tiempo_limite_segundos = 1 # 2 minutos
+                self.tiempo_limite_segundos = 120 # 2 minutos
                 self.tiempo_inicio = time.time()  # Reiniciamos el reloj
                 self.activa = True                # Aseguramos que siga activa
             else:

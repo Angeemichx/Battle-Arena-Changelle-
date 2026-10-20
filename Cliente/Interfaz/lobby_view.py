@@ -36,6 +36,48 @@ TIPOS_MAPA = [
 ]
 OPCIONES_TIEMPO_MIN = [1, 3, 5]
 OPCIONES_PUNTOS_META = [300, 500, 800]
+OPCIONES_CONGELAMIENTO_SEG = [3, 5, 10]
+MODOS_FIN = ["tiempo", "puntos"]
+NUM_OPCIONES_MAPAS = 7  # 3 mapas + duracion + meta + modo de fin + congelamiento (US-08)
+
+
+def _siguiente_opcion(opciones: list, actual) -> object:
+    """Siguiente valor de la lista circular; si el actual no esta en la lista (p. ej. venia del
+    archivo guardado), empieza por el primero."""
+    if actual in opciones:
+        return opciones[(opciones.index(actual) + 1) % len(opciones)]
+    return opciones[0]
+
+
+def aplicar_opcion_configuracion(controller, op_idx: int) -> str:
+    """
+    Descripcion:
+        Cicla el parametro de partida asociado a la opcion 3..6 del modal (US-08) y
+        persiste la configuracion. Devuelve el mensaje a mostrar.
+    Restricciones:
+        Solo el creador puede cambiar y unicamente antes de iniciar la partida (CA-08.6).
+    """
+    if not controller.es_creador:
+        return "ACCESO BLOQUEADO: Solo el creador puede cambiar mapa y parametros."
+    if not controller.configuracion_editable():
+        return "BLOQUEADO: la partida ya inicio, la configuracion no se puede cambiar."
+    if op_idx == 3:
+        controller.tiempo_partida_min = _siguiente_opcion(OPCIONES_TIEMPO_MIN, controller.tiempo_partida_min)
+        msg = f"Duracion de partida: {controller.tiempo_partida_min} min"
+    elif op_idx == 4:
+        controller.puntos_meta = _siguiente_opcion(OPCIONES_PUNTOS_META, controller.puntos_meta)
+        msg = f"Meta de puntos para ganar: {controller.puntos_meta} pts"
+    elif op_idx == 5:
+        controller.modo_fin = _siguiente_opcion(MODOS_FIN, controller.modo_fin)
+        msg = "La partida termina por: " + ("tiempo" if controller.modo_fin == "tiempo" else "puntos")
+    elif op_idx == 6:
+        controller.tiempo_congelado_seg = _siguiente_opcion(OPCIONES_CONGELAMIENTO_SEG, controller.tiempo_congelado_seg)
+        msg = f"Congelamiento: {controller.tiempo_congelado_seg} s"
+    else:
+        return ""
+    if not controller.guardar_configuracion_partida():
+        msg += " (no se pudo guardar)"
+    return msg
 
 
 def _generar_superficie_minimapa(tipo_mapa: str) -> pygame.Surface:
@@ -350,7 +392,7 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                     if pestana_modal == "colores":
                         indice_foco = (indice_foco - 1) % len(lista_colores)
                     elif pestana_modal == "mapas":
-                        indice_foco = (indice_foco - 1) % 5  # 3 mapas + tiempo + puntos
+                        indice_foco = (indice_foco - 1) % NUM_OPCIONES_MAPAS
                     elif pestana_modal == "musica":
                         controller.volumen_musica = max(0, controller.volumen_musica - 10)
                         controller.actualizar_volumen_audio()
@@ -366,7 +408,7 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                     if pestana_modal == "colores":
                         indice_foco = (indice_foco + 1) % len(lista_colores)
                     elif pestana_modal == "mapas":
-                        indice_foco = (indice_foco + 1) % 5
+                        indice_foco = (indice_foco + 1) % NUM_OPCIONES_MAPAS
                     elif pestana_modal == "musica":
                         controller.volumen_musica = min(100, controller.volumen_musica + 10)
                         controller.actualizar_volumen_audio()
@@ -389,22 +431,18 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                             controller.guardar_config_local()
                             mensaje_modal = f"Color seleccionado: {nom_c}."
                     elif pestana_modal == "mapas":
-                        op_idx = indice_foco % 5
+                        op_idx = indice_foco % NUM_OPCIONES_MAPAS
                         if not controller.es_creador:
                             mensaje_modal = "ACCESO BLOQUEADO: Solo el creador puede cambiar mapa y parametros."
+                        elif op_idx < 3 and not controller.configuracion_editable():
+                            mensaje_modal = "BLOQUEADO: la partida ya inicio, la configuracion no se puede cambiar."
                         elif op_idx < 3:
                             nombre_mapa = TIPOS_MAPA[op_idx]
                             controller.mapa_seleccionado = nombre_mapa
                             minimapa_base = _generar_superficie_minimapa(nombre_mapa)
                             mensaje_modal = f"Mapa cambiado a: {nombre_mapa}"
-                        elif op_idx == 3:
-                            idx_t = (OPCIONES_TIEMPO_MIN.index(controller.tiempo_partida_min) + 1) % len(OPCIONES_TIEMPO_MIN)
-                            controller.tiempo_partida_min = OPCIONES_TIEMPO_MIN[idx_t]
-                            mensaje_modal = f"Duracion de partida: {controller.tiempo_partida_min} min"
-                        elif op_idx == 4:
-                            idx_p = (OPCIONES_PUNTOS_META.index(controller.puntos_meta) + 1) % len(OPCIONES_PUNTOS_META)
-                            controller.puntos_meta = OPCIONES_PUNTOS_META[idx_p]
-                            mensaje_modal = f"Meta de puntos para ganar: {controller.puntos_meta} pts"
+                        else:
+                            mensaje_modal = aplicar_opcion_configuracion(controller, op_idx)
                     elif pestana_modal == "musica":
                         controller.volumen_musica = 0 if controller.volumen_musica > 0 else 50
                         controller.actualizar_volumen_audio()
@@ -729,7 +767,7 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
             elif pestana_modal == "mapas":
                 if controller.es_creador:
                     lbl_m_info = font_bold.render(
-                        "Anfitrion: Configura el Mapa, Tiempo y Meta de Puntos (Mando o Raton):",
+                        "Anfitrion: Configura Mapa, Duracion, Meta, Modo y Congelamiento (Mando o Raton):",
                         True,
                         (42, 157, 143),
                     )
@@ -749,7 +787,7 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                         int(40 * sy),
                     )
                     seleccionado = controller.mapa_seleccionado == nombre_mapa
-                    foco_mando = (fila_foco == 1 and (indice_foco % 5) == idx)
+                    foco_mando = (fila_foco == 1 and (indice_foco % NUM_OPCIONES_MAPAS) == idx)
 
                     bg_m = ((42, 157, 143) if seleccionado else (43, 45, 66)) if controller.es_creador else (38, 40, 50)
                     pygame.draw.rect(screen, bg_m, m_rect, border_radius=7)
@@ -763,26 +801,33 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                     screen.blit(lbl_mp, (m_rect.x + int(16 * sx), m_rect.centery - lbl_mp.get_height() // 2))
                     rects_modal[f"mapa_{idx}"] = (m_rect, nombre_mapa)
 
-                # Selectores de Parametros de Partida (US-08): Duracion y Meta de Puntos
-                param_y = content_y + int(32 * sy) + 3 * int(48 * sy) + int(6 * sy)
+                # Selectores de Parametros de Partida (US-08): 2 filas x 2 botones
+                param_y = content_y + int(32 * sy) + 3 * int(48 * sy) + int(2 * sy)
                 param_w = (modal_w - int(72 * sx)) // 2
-                btn_tiempo_rect = pygame.Rect(modal_rect.x + int(28 * sx), param_y, param_w, int(44 * sy))
-                btn_puntos_rect = pygame.Rect(btn_tiempo_rect.right + int(16 * sx), param_y, param_w, int(44 * sy))
-
-                for p_idx, (p_rect, p_txt) in enumerate([
-                    (btn_tiempo_rect, f"Duracion: {controller.tiempo_partida_min} Minutos"),
-                    (btn_puntos_rect, f"Meta Ganador: {controller.puntos_meta} Puntos"),
-                ]):
-                    foco_p = (fila_foco == 1 and (indice_foco % 5) == (3 + p_idx))
-                    pygame.draw.rect(screen, (31, 83, 141) if controller.es_creador else (38, 40, 50), p_rect, border_radius=7)
+                alto_p = int(40 * sy)
+                editable = controller.es_creador and controller.configuracion_editable()
+                etiqueta_modo = "Tiempo" if controller.modo_fin == "tiempo" else "Puntos"
+                params = [
+                    ("btn_tiempo", 0, 0, f"Duracion: {controller.tiempo_partida_min} Minutos"),
+                    ("btn_puntos", 1, 0, f"Meta Ganador: {controller.puntos_meta} Puntos"),
+                    ("btn_modo", 0, 1, f"Termina por: {etiqueta_modo}"),
+                    ("btn_congela", 1, 1, f"Congelamiento: {controller.tiempo_congelado_seg} s"),
+                ]
+                for p_idx, (clave, col, fila, p_txt) in enumerate(params):
+                    p_rect = pygame.Rect(
+                        modal_rect.x + int(28 * sx) + col * (param_w + int(16 * sx)),
+                        param_y + fila * (alto_p + int(6 * sy)),
+                        param_w,
+                        alto_p,
+                    )
+                    foco_p = (fila_foco == 1 and (indice_foco % NUM_OPCIONES_MAPAS) == (3 + p_idx))
+                    pygame.draw.rect(screen, (31, 83, 141) if editable else (38, 40, 50), p_rect, border_radius=7)
                     pygame.draw.rect(screen, (120, 160, 220), p_rect, 1, border_radius=7)
                     if foco_p:
                         pygame.draw.rect(screen, (233, 196, 106), p_rect.inflate(6, 6), 3, border_radius=9)
-                    s_pt = font_bold.render(p_txt, True, (255, 255, 255))
+                    s_pt = font_bold.render(p_txt, True, (255, 255, 255) if editable else (150, 155, 170))
                     screen.blit(s_pt, (p_rect.centerx - s_pt.get_width() // 2, p_rect.centery - s_pt.get_height() // 2))
-
-                rects_modal["btn_tiempo"] = btn_tiempo_rect
-                rects_modal["btn_puntos"] = btn_puntos_rect
+                    rects_modal[clave] = p_rect
 
             elif pestana_modal == "musica":
                 lbl_au = font_bold.render(
@@ -1007,28 +1052,21 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                                 if m_rect.collidepoint(pos):
                                     fila_foco = 1
                                     indice_foco = idx
-                                    if controller.es_creador:
+                                    if controller.es_creador and not controller.configuracion_editable():
+                                        mensaje_modal = "BLOQUEADO: la partida ya inicio, la configuracion no se puede cambiar."
+                                    elif controller.es_creador:
                                         controller.mapa_seleccionado = nombre_mapa
                                         minimapa_base = _generar_superficie_minimapa(nombre_mapa)
                                         mensaje_modal = f"Mapa cambiado a: {nombre_mapa}"
                                     else:
                                         mensaje_modal = "Acceso bloqueado: Solo el creador puede cambiar el mapa."
 
-                        if rects_modal.get("btn_tiempo") and rects_modal["btn_tiempo"].collidepoint(pos):
-                            if controller.es_creador:
-                                idx_t = (OPCIONES_TIEMPO_MIN.index(controller.tiempo_partida_min) + 1) % len(OPCIONES_TIEMPO_MIN)
-                                controller.tiempo_partida_min = OPCIONES_TIEMPO_MIN[idx_t]
-                                mensaje_modal = f"Duracion de partida: {controller.tiempo_partida_min} minutos"
-                            else:
-                                mensaje_modal = "Acceso bloqueado: Solo el creador puede cambiar la duracion."
-
-                        if rects_modal.get("btn_puntos") and rects_modal["btn_puntos"].collidepoint(pos):
-                            if controller.es_creador:
-                                idx_p = (OPCIONES_PUNTOS_META.index(controller.puntos_meta) + 1) % len(OPCIONES_PUNTOS_META)
-                                controller.puntos_meta = OPCIONES_PUNTOS_META[idx_p]
-                                mensaje_modal = f"Meta de puntos: {controller.puntos_meta} puntos"
-                            else:
-                                mensaje_modal = "Acceso bloqueado: Solo el creador puede cambiar la meta."
+                        for clave_btn, op_btn in (("btn_tiempo", 3), ("btn_puntos", 4), ("btn_modo", 5), ("btn_congela", 6)):
+                            r_btn = rects_modal.get(clave_btn)
+                            if r_btn and r_btn.collidepoint(pos):
+                                fila_foco = 1
+                                indice_foco = op_btn
+                                mensaje_modal = aplicar_opcion_configuracion(controller, op_btn)
 
                     elif pestana_modal == "musica":
                         if rects_modal.get("barra_vol") and rects_modal["barra_vol"].collidepoint(pos):

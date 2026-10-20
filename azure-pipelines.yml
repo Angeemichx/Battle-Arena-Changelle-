@@ -17,3 +17,8 @@ steps:
     echo Add other tasks to build, test, and deploy your project.
     echo See https://aka.ms/yaml
   displayName: 'Run a multi-line script'
+
+- script: |
+    python3 -m pip install pytest pygame-ce
+    SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy python3 -m pytest Cliente/Inputs/Tests Cliente/Config/Tests -q
+  displayName: 'Pruebas unitarias del cliente (entrada y configuracion)'

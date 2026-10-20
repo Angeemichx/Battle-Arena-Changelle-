@@ -324,3 +324,39 @@ def test_acceso_rapido_admin_1_y_admin_2(tmp_path):
     r_ocupado = auth.iniciar_sesion("Admin 1", "1234", controller=ctrl)
     assert r_ocupado["ok"] is False
     assert "ya se encuentra conectado en otro ordenador" in r_ocupado["msg"]
+
+
+def test_avatar_select_view_cambio_color_y_persistencia(tmp_path, monkeypatch):
+    """
+    Descripcion:
+        Verifica que AvatarSelectView permita cambiar el color del avatar, actualizar la
+        previsualizacion y persistir los cambios en config_local.json (US-06).
+    Entradas:
+        tmp_path: Directorio temporal de pytest.
+        monkeypatch: Fixture de pytest para redirigir la ruta de configuracion.
+    Salidas:
+        None: Ejecuta aserciones sobre el estado del controlador tras guardar.
+    Restricciones:
+        Requiere inicializar CustomTkinter sin desplegar pantalla grafica real.
+    """
+    from Cliente.Interfaz.avatar_select_view import AvatarSelectView
+    import Cliente.Interfaz.root as root_mod
+
+    config_test = tmp_path / "config_test.json"
+    monkeypatch.setattr(root_mod, "CONFIG_PATH", config_test)
+
+    ctrl = AppController()
+    view = AvatarSelectView(ctrl)
+    view.withdraw()
+
+    # Seleccionar color Verde
+    view._seleccionar_color("#2A9D8F")
+    assert view.color_temp == "#2A9D8F"
+
+    # Guardar y aplicar (evitando abrir el mainloop de HubView en test unitario)
+    monkeypatch.setattr(ctrl, "mostrar_hub", lambda: None)
+    view._guardar_y_volver()
+    assert ctrl.avatar_color == "#2A9D8F"
+    assert config_test.exists()
+
+    view.destroy()

@@ -567,6 +567,22 @@ class AppController:
         self.ventana_actual = JugarView(self)
         self.ventana_actual.mainloop()
 
+    def mostrar_avatar_select(self) -> None:
+        """
+        Descripcion:
+            Cierra la vista actual y abre el selector de Avatar en CustomTkinter (AvatarSelectView - US-06).
+        Entradas:
+            Ninguna.
+        Salidas:
+            None: Inicia el mainloop de AvatarSelectView.
+        Restricciones:
+            Ninguna.
+        """
+        self._cerrar_ventana_actual()
+        from Cliente.Interfaz.avatar_select_view import AvatarSelectView
+        self.ventana_actual = AvatarSelectView(self)
+        self.ventana_actual.mainloop()
+
     def mostrar_perfil(self) -> None:
         """
         Descripcion:

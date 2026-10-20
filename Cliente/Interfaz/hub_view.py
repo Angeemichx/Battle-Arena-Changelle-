@@ -77,6 +77,18 @@ class HubView(ctk.CTk):
             command=self.controller.mostrar_jugar,
         ).pack(pady=10)
 
+        # 2. Seleccionar Avatar (US-06)
+        ctk.CTkButton(
+            self.menu_frame,
+            text="SELECCIONAR AVATAR",
+            width=280,
+            height=42,
+            font=("Segoe UI", 13, "bold"),
+            fg_color="#2A9D8F",
+            hover_color="#21867A",
+            command=self.controller.mostrar_avatar_select,
+        ).pack(pady=10)
+
         # 2. Perfil
         ctk.CTkButton(
             self.menu_frame,

@@ -600,9 +600,6 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
             else:
                 pygame.draw.rect(screen, hex_to_rgb(c_hex), j_rect, border_radius=6)
 
-            if jug["es_local"]:
-                pygame.draw.rect(screen, (255, 255, 255), j_rect, 2, border_radius=6)
-
             lbl_nom = font_small.render(jug["nombre"], True, (255, 255, 255))
             screen.blit(lbl_nom, (j_rect.centerx - lbl_nom.get_width() // 2, j_rect.top - lbl_nom.get_height() - 4))
 

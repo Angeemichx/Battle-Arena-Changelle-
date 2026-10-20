@@ -50,17 +50,28 @@ class LoginView(ctk.CTk):
         self.resizable(True, True)
         ctk.set_appearance_mode("dark")
 
-        # Contenedor central del formulario
-        self.frame = ctk.CTkFrame(self, fg_color=COLOR_PANEL, corner_radius=12)
+        # Fondo ambiental de estacion nuclear
+        ruta_bg = Path(__file__).resolve().parent.parent / "Recursos" / "Sprites" / "UI" / "bg_nuclear_station.png"
+        if ruta_bg.exists():
+            try:
+                pil_bg = Image.open(str(ruta_bg))
+                self.bg_img = ctk.CTkImage(light_image=pil_bg, dark_image=pil_bg, size=(900, 750))
+                self.lbl_bg = ctk.CTkLabel(self, image=self.bg_img, text="")
+                self.lbl_bg.place(x=0, y=0, relwidth=1, relheight=1)
+            except Exception:
+                pass
+
+        # Contenedor central del formulario con estetica de estacion de reactor
+        self.frame = ctk.CTkFrame(self, fg_color=("#141822", "#141822"), border_width=2, border_color="#2A354D", corner_radius=12)
         self.frame.pack(padx=30, pady=24, fill="both", expand=True)
 
-        # Logotipo oficial del juego mediante Sprite
-        ruta_logo = Path(__file__).resolve().parent.parent / "Recursos" / "Sprites" / "UI" / "logo_battle_arena.png"
+        # Logotipo oficial del juego: letras puras transparentes sin caja de fondo
+        ruta_logo = Path(__file__).resolve().parent.parent / "Recursos" / "Sprites" / "UI" / "logo_letras_puras.png"
         if ruta_logo.exists():
             try:
                 pil_logo = Image.open(str(ruta_logo))
-                self.img_logo = ctk.CTkImage(light_image=pil_logo, dark_image=pil_logo, size=(270, 90))
-                ctk.CTkLabel(self.frame, image=self.img_logo, text="").pack(pady=(12, 10))
+                self.img_logo = ctk.CTkImage(light_image=pil_logo, dark_image=pil_logo, size=(300, 58))
+                ctk.CTkLabel(self.frame, image=self.img_logo, text="").pack(pady=(16, 12))
             except Exception:
                 self.img_logo = None
         else:

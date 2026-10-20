@@ -87,7 +87,8 @@ def inicializar_sprites(forzar_recarga: bool = False) -> dict:
     dir_env = base_dir / "Entorno"
     nombres_env = [
         "reactor_core", "extraction_ring", "spawn_pad",
-        "muro_plomo", "piso_rejilla", "mesa_comando"
+        "muro_plomo", "piso_rejilla", "mesa_comando",
+        "muro_ladrillo", "piso_calor", "muro_hormigon", "piso_hexagonal"
     ]
     for n in nombres_env:
         ruta = dir_env / f"{n}.png"
@@ -97,7 +98,7 @@ def inicializar_sprites(forzar_recarga: bool = False) -> dict:
 
     # 4. Cargar Carteles y UI de Pygame
     dir_ui = base_dir / "UI"
-    nombres_ui = ["sign_despegue", "sign_salida", "sign_mesa_comando", "logo_battle_arena"]
+    nombres_ui = ["sign_despegue", "sign_salida", "sign_mesa_comando", "logo_battle_arena", "logo_letras_puras"]
     for n in nombres_ui:
         ruta = dir_ui / f"{n}.png"
         s = _safe_load_img(ruta)

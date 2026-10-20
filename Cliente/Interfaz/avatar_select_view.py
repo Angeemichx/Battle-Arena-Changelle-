@@ -5,6 +5,7 @@ Permite elegir entre los 5 colores obligatorios de hitbox o cargar una imagen de
 """
 from __future__ import annotations
 import os
+from pathlib import Path
 import tkinter.filedialog as filedialog
 import customtkinter as ctk
 from PIL import Image
@@ -53,6 +54,17 @@ class AvatarSelectView(ctk.CTk):
         self.resizable(True, True)
         ctk.set_appearance_mode("dark")
 
+        # Fondo ambiental de estacion nuclear
+        ruta_bg = Path(__file__).resolve().parent.parent / "Recursos" / "Sprites" / "UI" / "bg_nuclear_station.png"
+        if ruta_bg.exists():
+            try:
+                pil_bg = Image.open(str(ruta_bg))
+                self.bg_img = ctk.CTkImage(light_image=pil_bg, dark_image=pil_bg, size=(900, 750))
+                self.lbl_bg = ctk.CTkLabel(self, image=self.bg_img, text="")
+                self.lbl_bg.place(x=0, y=0, relwidth=1, relheight=1)
+            except Exception:
+                pass
+
         # Barra superior con boton Regresar
         top_bar = ctk.CTkFrame(self, fg_color="transparent")
         top_bar.pack(fill="x", padx=25, pady=(15, 0))
@@ -67,35 +79,35 @@ class AvatarSelectView(ctk.CTk):
             command=self.controller.mostrar_hub,
         ).pack(side="left")
 
-        # Marco principal contenedor
-        frame = ctk.CTkFrame(self, fg_color=COLOR_PANEL, corner_radius=12)
+        # Marco principal contenedor con estilo de estacion nuclear
+        frame = ctk.CTkFrame(self, fg_color=("#141822", "#141822"), border_width=2, border_color="#2A354D", corner_radius=12)
         frame.pack(padx=25, pady=15, fill="both", expand=True)
 
         ctk.CTkLabel(
             frame,
-            text="CONFIGURACION DE AVATAR (US-06)",
+            text="CONFIGURACION DE AVATAR",
             font=("Segoe UI", 18, "bold"),
             text_color=COLOR_TEXTO,
-        ).pack(pady=(18, 10))
+        ).pack(pady=(16, 6))
 
         ctk.CTkLabel(
             frame,
-            text="Elige tu color de hitbox espacial o carga una imagen personalizada.",
+            text="Selecciona tu traje Hazmat radiactivo o carga un avatar personalizado.",
             font=("Segoe UI", 11),
             text_color="#8E9AA8",
-        ).pack(pady=(0, 15))
+        ).pack(pady=(0, 12))
 
-        # 1. Caja de Previsualizacion en Vivo
+        # 1. Caja de Previsualizacion en Vivo con Operador Hazmat
         self.preview_box = ctk.CTkFrame(
             frame,
-            width=90,
-            height=90,
-            fg_color=self.color_temp,
-            corner_radius=8,
+            width=110,
+            height=110,
+            fg_color="#181C26",
+            corner_radius=10,
             border_width=3,
-            border_color="#FFFFFF",
+            border_color=self.color_temp,
         )
-        self.preview_box.pack(pady=10)
+        self.preview_box.pack(pady=8)
         self.preview_box.pack_propagate(False)
 
         self.lbl_preview_img = ctk.CTkLabel(self.preview_box, text="")
@@ -103,21 +115,40 @@ class AvatarSelectView(ctk.CTk):
 
         self.lbl_info = ctk.CTkLabel(
             frame,
-            text=f"Color seleccionado: {self.controller.obtener_nombre_color(self.color_temp)}",
+            text=f"Operador Hazmat: {self.controller.obtener_nombre_color(self.color_temp)}",
             font=("Segoe UI", 12, "bold"),
             text_color="#E9C46A",
         )
-        self.lbl_info.pack(pady=5)
+        self.lbl_info.pack(pady=4)
 
-        # 2. Paleta de los 5 colores base obligatorios (CA-06.1 y CA-06.2)
+        # 2. Paleta de los 5 colores base con iconos de personajes
         palette_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        palette_frame.pack(pady=12)
+        palette_frame.pack(pady=10)
 
+        self._mini_icons = {}
         for nombre, hex_c in COLORES_AVATAR.items():
+            ruta_mini = (
+                Path(__file__).resolve().parent.parent
+                / "Recursos"
+                / "Sprites"
+                / "Personajes"
+                / f"char_{nombre.lower()}_down.png"
+            )
+            img_mini = None
+            if ruta_mini.exists():
+                try:
+                    pil_mini = Image.open(str(ruta_mini)).resize((22, 22), Image.Resampling.NEAREST)
+                    img_mini = ctk.CTkImage(light_image=pil_mini, dark_image=pil_mini, size=(22, 22))
+                    self._mini_icons[nombre] = img_mini
+                except Exception:
+                    pass
+
             btn = ctk.CTkButton(
                 palette_frame,
-                text=nombre,
-                width=75,
+                text=f" {nombre}",
+                image=img_mini,
+                compound="left",
+                width=80,
                 height=34,
                 fg_color=hex_c,
                 hover_color=hex_c,
@@ -125,11 +156,11 @@ class AvatarSelectView(ctk.CTk):
                 font=("Segoe UI", 11, "bold"),
                 command=lambda col=hex_c: self._seleccionar_color(col),
             )
-            btn.pack(side="left", padx=5)
+            btn.pack(side="left", padx=4)
 
-        # 3. Carga desde Disco (CA-06.3)
+        # 3. Carga desde Disco
         actions_frame = ctk.CTkFrame(frame, fg_color="#181A20", corner_radius=8)
-        actions_frame.pack(padx=30, pady=12, fill="x")
+        actions_frame.pack(padx=30, pady=10, fill="x")
 
         ctk.CTkButton(
             actions_frame,
@@ -140,11 +171,11 @@ class AvatarSelectView(ctk.CTk):
             fg_color=COLOR_PRIMARIO,
             hover_color=COLOR_PRIMARIO_HOVER,
             command=self._cargar_imagen_disco,
-        ).pack(pady=(12, 6))
+        ).pack(pady=(10, 6))
 
         self.btn_quitar_img = ctk.CTkButton(
             actions_frame,
-            text="Usar Solo Hitbox de Color",
+            text="Usar Solo Traje Hazmat Oficial",
             width=200,
             height=28,
             font=("Segoe UI", 10),
@@ -152,7 +183,7 @@ class AvatarSelectView(ctk.CTk):
             hover_color="#3B3E5B",
             command=self._quitar_imagen_disco,
         )
-        self.btn_quitar_img.pack(pady=(0, 12))
+        self.btn_quitar_img.pack(pady=(0, 10))
 
         # 4. Boton Guardar y Aplicar
         ctk.CTkButton(
@@ -164,7 +195,7 @@ class AvatarSelectView(ctk.CTk):
             fg_color=COLOR_EXITO,
             hover_color=COLOR_EXITO_HOVER,
             command=self._guardar_y_volver,
-        ).pack(pady=(15, 10))
+        ).pack(pady=(12, 10))
 
         # Sincronizar visual inicial
         self._actualizar_previsualizacion()
@@ -172,7 +203,7 @@ class AvatarSelectView(ctk.CTk):
     def _actualizar_previsualizacion(self) -> None:
         """
         Descripcion:
-            Refresca el cuadro de previsualizacion con la imagen cargada o con el color de la hitbox.
+            Refresca el cuadro de previsualizacion con la imagen cargada o con el personaje Hazmat oficial.
         Entradas:
             Ninguna.
         Salidas:
@@ -181,12 +212,14 @@ class AvatarSelectView(ctk.CTk):
             Requiere Pillow para renderizar imagenes en CustomTkinter.
         """
         nombre_color = self.controller.obtener_nombre_color(self.color_temp)
+
+        # Caso A: Imagen personalizada elegida por el usuario
         if self.imagen_temp and os.path.exists(self.imagen_temp):
             try:
-                pil_img = Image.open(self.imagen_temp).resize((84, 84))
-                ctk_img = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=(84, 84))
+                pil_img = Image.open(self.imagen_temp).resize((96, 96))
+                ctk_img = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=(96, 96))
                 self.lbl_preview_img.configure(image=ctk_img, text="")
-                self.preview_box.configure(fg_color="#181A20")
+                self.preview_box.configure(fg_color="#181A20", border_color=self.color_temp)
                 self.lbl_info.configure(
                     text=f"Color base: {nombre_color} | Imagen: {os.path.basename(self.imagen_temp)}"
                 )
@@ -194,9 +227,28 @@ class AvatarSelectView(ctk.CTk):
             except Exception as e:
                 print(f"[AVATAR_SELECT] No se pudo cargar imagen previa: {e}")
 
-        # Sin imagen de disco: se muestra el color solido de la hitbox
+        # Caso B: Sprite oficial del Operador Hazmat segun el color elegido
+        ruta_char = (
+            Path(__file__).resolve().parent.parent
+            / "Recursos"
+            / "Sprites"
+            / "Personajes"
+            / f"char_{nombre_color.lower()}_down.png"
+        )
+        if ruta_char.exists():
+            try:
+                pil_char = Image.open(str(ruta_char)).resize((96, 96), Image.Resampling.NEAREST)
+                ctk_char = ctk.CTkImage(light_image=pil_char, dark_image=pil_char, size=(96, 96))
+                self.lbl_preview_img.configure(image=ctk_char, text="")
+                self.preview_box.configure(fg_color="#181C26", border_color=self.color_temp)
+                self.lbl_info.configure(text=f"Operador Hazmat Activo: {nombre_color} ({self.color_temp})")
+                return
+            except Exception as e:
+                print(f"[AVATAR_SELECT] Error cargando sprite de operador: {e}")
+
+        # Caso C: Respaldo con color plano si no se encuentra el asset
         self.lbl_preview_img.configure(image=None, text="")
-        self.preview_box.configure(fg_color=self.color_temp)
+        self.preview_box.configure(fg_color=self.color_temp, border_color="#FFFFFF")
         self.lbl_info.configure(text=f"Hitbox activa: {nombre_color} ({self.color_temp})")
 
     def _seleccionar_color(self, hex_color: str) -> None:

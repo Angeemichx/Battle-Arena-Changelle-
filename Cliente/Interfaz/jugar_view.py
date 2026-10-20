@@ -3,6 +3,8 @@ Ventana de Salas de Partida (JUGAR).
 Permite crear partida (Anfitrion) o unirse a una existente por IP y Puerto.
 """
 import customtkinter as ctk
+from pathlib import Path
+from PIL import Image
 from Cliente.Interfaz.Components.ui_helpers import (
     COLOR_PANEL, COLOR_PRIMARIO, COLOR_PRIMARIO_HOVER,
     COLOR_SECUNDARIO, COLOR_SECUNDARIO_HOVER,
@@ -43,6 +45,17 @@ class JugarView(ctk.CTk):
         self.resizable(True, True)
         ctk.set_appearance_mode("dark")
 
+        # Fondo ambiental de estacion nuclear
+        ruta_bg = Path(__file__).resolve().parent.parent / "Recursos" / "Sprites" / "UI" / "bg_nuclear_station.png"
+        if ruta_bg.exists():
+            try:
+                pil_bg = Image.open(str(ruta_bg))
+                self.bg_img = ctk.CTkImage(light_image=pil_bg, dark_image=pil_bg, size=(900, 750))
+                self.lbl_bg = ctk.CTkLabel(self, image=self.bg_img, text="")
+                self.lbl_bg.place(x=0, y=0, relwidth=1, relheight=1)
+            except Exception:
+                pass
+
         # Barra superior con boton Regresar
         top_bar = ctk.CTkFrame(self, fg_color="transparent")
         top_bar.pack(fill="x", padx=25, pady=(15, 0))
@@ -57,8 +70,8 @@ class JugarView(ctk.CTk):
             command=self.controller.mostrar_hub,
         ).pack(side="left")
 
-        # Marco principal
-        frame = ctk.CTkFrame(self, fg_color=COLOR_PANEL, corner_radius=12)
+        # Marco principal con estetica de estacion nuclear
+        frame = ctk.CTkFrame(self, fg_color=("#141822", "#141822"), border_width=2, border_color="#2A354D", corner_radius=12)
         frame.pack(padx=25, pady=15, fill="both", expand=True)
 
         ctk.CTkLabel(

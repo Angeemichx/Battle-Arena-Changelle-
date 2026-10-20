@@ -384,8 +384,20 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
         # =====================================================================
         world_surface.fill((18, 21, 28))
 
-        # A. Piso de la Estacion: textura de rejilla metalica
-        sprite_piso = obtener_sprite_entorno("piso_rejilla")
+        # Seleccion dinamica de texturas segun la variante de mapa (3 mapas con tematicas unicas)
+        mapa_nombre = getattr(controller, "mapa_seleccionado", "Estacion Estandar")
+        if mapa_nombre == "Reactor Inestable":
+            key_piso = "piso_calor"
+            key_muro = "muro_ladrillo"
+        elif mapa_nombre == "Laberinto Cerrado":
+            key_piso = "piso_hexagonal"
+            key_muro = "muro_hormigon"
+        else:
+            key_piso = "piso_rejilla"
+            key_muro = "muro_plomo"
+
+        # A. Piso de la Arena segun la variante tematica seleccionada
+        sprite_piso = obtener_sprite_entorno(key_piso)
         if sprite_piso:
             pw, ph = sprite_piso.get_size()
             # Se dibuja la rejilla en pasos regulares para no penalizar rendimiento
@@ -426,11 +438,14 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
             pygame.draw.circle(world_surface, (0, 119, 182), (rx, ry), REACTOR_COLLISION_RADIUS)
             pygame.draw.circle(world_surface, (0, 235, 255), (rx, ry), REACTOR_COLLISION_RADIUS, 4)
 
+        # Hitbox fisica circular visible del Reactor Central (radio de colision)
+        pygame.draw.circle(world_surface, (57, 255, 20), (rx, ry), REACTOR_COLLISION_RADIUS, 3)
+
         lbl_reac = font_reactor.render("REACTOR CENTRAL (+40 PTS/SEG)", True, (255, 255, 255))
         world_surface.blit(lbl_reac, (rx - lbl_reac.get_width() // 2, ry - 146))
 
-        # D. Muros de Plomo Blindado mediante Sprites
-        sprite_muro = obtener_sprite_entorno("muro_plomo")
+        # D. Muros perimetrales e internos mediante Sprites segun variante tematica
+        sprite_muro = obtener_sprite_entorno(key_muro)
         for muro in muros_arena:
             if sprite_muro:
                 mw_step, mh_step = sprite_muro.get_size()
@@ -490,10 +505,6 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
                 world_surface.blit(sprite_char, j_rect)
             else:
                 pygame.draw.rect(world_surface, color_rgb, j_rect, border_radius=6)
-
-            # Indicador de jugador local (resplandor blanco tenue)
-            if jug["es_local"]:
-                pygame.draw.rect(world_surface, (255, 255, 255), j_rect, 2, border_radius=6)
 
             lbl_n = font_nombre.render(jug["nombre"], True, (255, 255, 255))
             world_surface.blit(lbl_n, (j_rect.centerx - lbl_n.get_width() // 2, j_rect.top - lbl_n.get_height() - 6))

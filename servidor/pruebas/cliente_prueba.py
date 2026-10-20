@@ -54,6 +54,7 @@ def main():
             print("  e = accion    q = salir")
             print("  i = iniciar partida (1 minuto)")
             print("  r = registrar   v = verificar   l = login")
+            print("  m = perfil   f = olvidé contraseña   x = restablecer")
             tecla = input(f"[{nombre}] Tecla: ").strip().lower()
 
             if tecla == "q":
@@ -64,19 +65,30 @@ def main():
                 "s": (0, 1),
                 "a": (-1, 0),
                 "d": (1, 0),}
-            if tecla in ("r", "v", "l"):
-                email = input("  Correo: ").strip()
-                if tecla == "r":
-                    usuario = input("  Usuario: ").strip()
-                    clave = input("  Contraseña: ").strip()
-                    msg = {"action": "register", "email": email,
-                           "username": usuario, "password": clave}
-                elif tecla == "v":
-                    codigo = input("  Código: ").strip()
-                    msg = {"action": "verify", "email": email, "code": codigo}
+            if tecla in ("r", "v", "l", "m", "f", "x"):
+                if tecla == "m":
+                    msg = {"action": "me"}
                 else:
-                    clave = input("  Contraseña: ").strip()
-                    msg = {"action": "login", "email": email, "password": clave}
+                    email = input("  Correo: ").strip()
+                    if tecla == "r":
+                        usuario = input("  Usuario: ").strip()
+                        clave = input("  Contraseña: ").strip()
+                        msg = {"action": "register", "email": email,
+                            "username": usuario, "password": clave}
+                    elif tecla == "v":
+                        codigo = input("  Código: ").strip()
+                        msg = {"action": "verify", "email": email, "code": codigo}
+                    elif tecla == "l":
+                        clave = input("  Contraseña: ").strip()
+                        msg = {"action": "login", "email": email, "password": clave}
+                    elif tecla == "f":
+                        msg = {"action": "forgot", "email": email}
+                    else:  # "x"
+                        codigo = input("  Código: ").strip()
+                        nueva = input("  Nueva contraseña: ").strip()
+                        msg = {"action": "reset", "email": email,
+                            "code": codigo, "new_password": nueva}
+
 
             elif tecla in movimientos:
                 dx, dy = movimientos[tecla]

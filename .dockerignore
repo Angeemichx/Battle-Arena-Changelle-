@@ -1,0 +1,9 @@
+.git
+.env
+.vscode
+.idea
+__pycache__/
+Cliente/
+Documentos/
+Servidor/pruebas/
+Servidor/infraestructure/data/*.json

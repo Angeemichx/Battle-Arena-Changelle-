@@ -4,7 +4,8 @@ from pathlib import Path
 from Servidor.adapters.json_repository import JsonRepository
 from Servidor.use_cases.auth_service import AuthService
 from Servidor.infraestructure.socket_server import ServidorJuego
-
+from Servidor.adapters.smtp_mailer import SmtpMailer
+from Servidor.adapters.consola_mailer import ConsolaMailer
 BASE = Path(__file__).resolve().parent
 
 
@@ -16,8 +17,8 @@ def main():
 
     # Crear adaptadores y casos de uso
     repo = JsonRepository(ruta)
-    auth = AuthService(repo)
-
+    mailer = ConsolaMailer()
+    auth = AuthService(repo, mailer)
     # Traduce la acción del mensaje
     def manejar(msg: dict, sesion: dict) -> dict:
         accion = msg.get("action")
@@ -33,7 +34,18 @@ def main():
                 if resp["ok"]:
                     sesion["email"] = resp["email"]
                 return resp
-    
+        if accion == "me":
+            if "email" not in sesion:
+                return {"ok": False, "msg": "Debes iniciar sesión"}
+            return auth.perfil(sesion["email"])
+
+        if accion == "forgot":
+            return auth.olvide_password(msg.get("email", ""))
+
+        if accion == "reset":
+            return auth.restablecer_password(
+                msg.get("email", ""), msg.get("code", ""), msg.get("new_password", "")
+            )
         # Aquí se van sumando: verify, login, me, forgot, reset
         return {"ok": False, "msg": "Acción desconocida"}
 

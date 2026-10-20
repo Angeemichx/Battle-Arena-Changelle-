@@ -1,0 +1,12 @@
+services:
+  servidor:
+    build:
+      context: .
+      dockerfile: Servidor/Dockerfile
+    ports:
+      - "5555:5555"
+    environment:
+      DATA_FILE: /app/data/usuarios.json
+    volumes:
+      - ./Servidor/infraestructure/data:/app/data
+    restart: unless-stopped

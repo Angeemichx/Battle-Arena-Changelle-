@@ -159,7 +159,7 @@ class ServidorJuego:
         elif accion:
             sesion = self.sesiones.setdefault(id_jugador, {})
             with self.lock:
-                respuesta = self.manejar(mensaje, {})
+                respuesta = self.manejar(mensaje, sesion)
             self._enviar_a(self.clientes.get(id_jugador), respuesta)
 
     #Enviar mensaje a todos los clientes que estén conectados 

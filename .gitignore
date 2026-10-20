@@ -14,7 +14,15 @@ error_servidor.log
 # Sistema
 .DS_Store
 Thumbs.db
+.env
 
 # IDE
 .vscode/
 .idea/
+
+# Datos del servidor 
+Servidor/infraestructure/data/*.json
+Servidor/infraestructure/data/*.tmp
+
+# Pruebas
+.pytest_cache/

@@ -3,6 +3,8 @@ Ventana de Perfil de Jugador.
 Muestra datos basicos y aviso de modulo en mantenimiento.
 """
 import customtkinter as ctk
+from pathlib import Path
+from PIL import Image
 from Cliente.Interfaz.Components.ui_helpers import (
     COLOR_PANEL, COLOR_SECUNDARIO, COLOR_SECUNDARIO_HOVER, COLOR_TEXTO,
     adaptar_ventana_ctk,
@@ -64,13 +66,24 @@ class PerfilView(ctk.CTk):
             text_color=COLOR_TEXTO,
         ).pack(pady=(25, 15))
 
-        # Tarjeta de Datos del Piloto
+        # Insignia y Tarjeta de Datos del Piloto con Sprite
+        ruta_marco = Path(__file__).resolve().parent.parent / "Recursos" / "Sprites" / "UI" / "card_perfil_marco.png"
+        if ruta_marco.exists():
+            try:
+                pil_m = Image.open(str(ruta_marco))
+                self.img_marco = ctk.CTkImage(light_image=pil_m, dark_image=pil_m, size=(320, 100))
+                ctk.CTkLabel(frame, image=self.img_marco, text="").pack(pady=(5, 10))
+            except Exception:
+                self.img_marco = None
+        else:
+            self.img_marco = None
+
         card = ctk.CTkFrame(frame, fg_color="#181A20", corner_radius=8)
-        card.pack(padx=30, pady=10, fill="x")
+        card.pack(padx=30, pady=6, fill="x")
 
         ctk.CTkLabel(
             card,
-            text=f"Usuario: {self.controller.usuario_actual}",
+            text=f"Piloto Autenticado: {self.controller.usuario_actual}",
             font=("Segoe UI", 13, "bold"),
         ).pack(pady=(12, 4))
 

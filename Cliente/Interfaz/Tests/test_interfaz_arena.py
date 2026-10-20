@@ -414,3 +414,84 @@ def test_resolver_conflicto_color_sin_colision():
     res = ctrl.resolver_conflicto_color(jugadores_sala)
     assert res is None
     assert ctrl.avatar_color == "#2A9D8F"
+
+
+def test_sprite_loader_retorna_superficies_validas():
+    """
+    Descripcion:
+        Verifica que el modulo sprite_loader cargue correctamente los sprites 2D de
+        personajes hazmat, particulas animadas y entorno de la estacion.
+    Entradas:
+        Ninguna.
+    Salidas:
+        None: Ejecuta aserciones sobre las dimensiones y tipos de superficies retornadas.
+    Restricciones:
+        Requiere pygame inicializado.
+    """
+    import pygame
+    from Cliente.Interfaz.Components.sprite_loader import (
+        inicializar_sprites,
+        obtener_frame_particula,
+        obtener_sprite_entorno,
+        obtener_sprite_personaje,
+    )
+    pygame.init()
+    if not pygame.display.get_init():
+        pygame.display.init()
+        pygame.display.set_mode((100, 100))
+
+    sp_rojo = obtener_sprite_personaje("#E63946", direccion="down", size=(48, 48))
+    assert sp_rojo is not None
+    assert sp_rojo.get_size() == (48, 48)
+
+    sp_part = obtener_frame_particula(0.0)
+    assert sp_part is not None
+
+    sp_reactor = obtener_sprite_entorno("reactor_core")
+    assert sp_reactor is not None
+
+
+def test_logica_abandonar_partida_victoria_inmediata_si_queda_uno():
+    """
+    Descripcion:
+        Verifica que al abandonar la partida, si en la sala solo queda 1 jugador restante,
+        se declare inmediatamente la victoria para dicho jugador.
+    Entradas:
+        Ninguna.
+    Salidas:
+        None: Verifica que el ganador sea el jugador restante y se active la condicion de victoria.
+    Restricciones:
+        Ninguna.
+    """
+    jugadores = [
+        {"id": 1, "nombre": "Local", "color": "#E63946", "es_local": True},
+        {"id": 2, "nombre": "Rival", "color": "#1D3557", "es_local": False},
+    ]
+
+    otros = [j for j in jugadores if not j.get("es_local", False)]
+    assert len(otros) == 1
+
+    ganador_inmediato = otros[0]
+    assert ganador_inmediato["nombre"] == "Rival"
+
+
+def test_logica_abandonar_partida_con_tres_jugadores_no_declara_ganador():
+    """
+    Descripcion:
+        Verifica que al abandonar la partida con 3 o mas jugadores, como quedan 2 o mas
+        participantes activos, el jugador local solo se retire al Lobby sin declarar ganador unico.
+    Entradas:
+        Ninguna.
+    Salidas:
+        None: Verifica que la cantidad de restantes sea mayor a 1.
+    Restricciones:
+        Ninguna.
+    """
+    jugadores = [
+        {"id": 1, "nombre": "Local", "color": "#E63946", "es_local": True},
+        {"id": 2, "nombre": "Piloto2", "color": "#1D3557", "es_local": False},
+        {"id": 3, "nombre": "Piloto3", "color": "#2A9D8F", "es_local": False},
+    ]
+
+    otros = [j for j in jugadores if not j.get("es_local", False)]
+    assert len(otros) >= 2

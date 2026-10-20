@@ -32,6 +32,12 @@ from Cliente.Interfaz.arena_collisions import (
     obtener_muros_arena,
 )
 from Cliente.Interfaz.Components.hud import dibujar_hud_arena, hex_to_rgb
+from Cliente.Interfaz.Components.sprite_loader import (
+    inicializar_sprites,
+    obtener_frame_particula,
+    obtener_sprite_entorno,
+    obtener_sprite_personaje,
+)
 
 
 def _cargar_imagen_avatar(ruta: str | None) -> pygame.Surface | None:
@@ -183,6 +189,7 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
             "acum_reactor": 0.0,
             "puntos": 0,
             "extrayendo": False,
+            "direccion": "down",
         })
 
     # Verificacion de seguridad: garantizar que no se repitan colores entre jugadores (CA-10.3)
@@ -226,6 +233,9 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
     corriendo = True
     accion_salida = None  # "lobby" | "cerrar"
     btn_volver_victoria_rect: pygame.Rect | None = None
+    menu_pausa_activo = False
+    opcion_pausa_idx = 0  # 0: REANUDAR, 1: ABANDONAR PARTIDA
+    btn_pausa_rects: list[pygame.Rect] = []
 
     while corriendo:
         dt = clock.tick(60) / 1000.0
@@ -242,7 +252,32 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
             comandos_nuevos = comandos_actuales - comandos_previos
         comandos_previos = set(comandos_actuales)
 
-        if not partida_finalizada:
+        # Gestion del Menu de Pausa / Configuracion en medio de la partida
+        if menu_pausa_activo:
+            if Command.UP in comandos_nuevos:
+                opcion_pausa_idx = 0
+            elif Command.DOWN in comandos_nuevos:
+                opcion_pausa_idx = 1
+            elif Command.ACTION in comandos_nuevos:
+                if opcion_pausa_idx == 0:
+                    menu_pausa_activo = False
+                    esperando_soltar_accion = True
+                elif opcion_pausa_idx == 1:
+                    # Abandonar partida:
+                    # Si al salir queda solo 1 jugador, ese jugador inmediatamente gana.
+                    # Si quedan 2 o mas jugadores, el jugador local solo se sale al lobby.
+                    otros_jugadores = [j for j in jugadores if not j.get("es_local", False)]
+                    if len(otros_jugadores) == 1:
+                        partida_finalizada = True
+                        jugador_ganador = otros_jugadores[0]
+                        accion_salida = "victoria"
+                        corriendo = False
+                    else:
+                        accion_salida = "lobby"
+                        corriendo = False
+                    menu_pausa_activo = False
+
+        elif not partida_finalizada:
             if modo_fin == "puntos":
                 tiempo_restante += dt
             else:
@@ -259,6 +294,12 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
             if not accion_activa:
                 dx_unit, dy_unit = direction_from(comandos_actuales)
                 if dx_unit != 0 or dy_unit != 0:
+                    # Actualizar orientacion del sprite del jugador
+                    if abs(dx_unit) >= abs(dy_unit):
+                        jugador_local["direccion"] = "right" if dx_unit > 0 else "left"
+                    else:
+                        jugador_local["direccion"] = "down" if dy_unit > 0 else "up"
+
                     pos_previa = jugador_local["rect"].topleft
                     jugador_local["rect"] = mover_con_colisiones(
                         jugador_local["rect"],
@@ -339,55 +380,90 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
                 corriendo = False
 
         # =====================================================================
-        # 2. RENDERIZADO DEL LIENZO DEL MUNDO (3600 x 2600 px)
+        # 2. RENDERIZADO DEL LIENZO DEL MUNDO CON SPRITES 2D (3600 x 2600 px)
         # =====================================================================
-        world_surface.fill((20, 24, 33))
+        world_surface.fill((18, 21, 28))
 
-        # Cuadricula de piso de la Estacion Espacial
-        for gx in range(0, WORLD_WIDTH, 120):
-            pygame.draw.line(world_surface, (28, 33, 45), (gx, 0), (gx, WORLD_HEIGHT), 1)
-        for gy in range(0, WORLD_HEIGHT, 120):
-            pygame.draw.line(world_surface, (28, 33, 45), (0, gy), (WORLD_WIDTH, gy), 1)
+        # A. Piso de la Estacion: textura de rejilla metalica
+        sprite_piso = obtener_sprite_entorno("piso_rejilla")
+        if sprite_piso:
+            pw, ph = sprite_piso.get_size()
+            # Se dibuja la rejilla en pasos regulares para no penalizar rendimiento
+            for gx in range(0, WORLD_WIDTH, pw * 2):
+                for gy in range(0, WORLD_HEIGHT, ph * 2):
+                    world_surface.blit(sprite_piso, (gx, gy))
+        else:
+            for gx in range(0, WORLD_WIDTH, 120):
+                pygame.draw.line(world_surface, (28, 33, 45), (gx, 0), (gx, WORLD_HEIGHT), 1)
+            for gy in range(0, WORLD_HEIGHT, 120):
+                pygame.draw.line(world_surface, (28, 33, 45), (0, gy), (WORLD_WIDTH, gy), 1)
 
-        # Dibujar 4 Plataformas de Spawn (Norte, Sur, Oeste, Este - CA-07.4)
+        # B. Plataformas de Spawn (Norte, Sur, Oeste, Este - CA-07.4) mediante Sprite
+        sprite_spawn = obtener_sprite_entorno("spawn_pad", (96, 96))
         nombres_spawns = {0: "SPAWN NORTE", 1: "SPAWN SUR", 2: "SPAWN OESTE", 3: "SPAWN ESTE"}
         for idx, (spx, spy) in SPAWN_POINTS.items():
-            pygame.draw.circle(world_surface, (30, 65, 65), (spx, spy), 68)
-            pygame.draw.circle(world_surface, (42, 157, 143), (spx, spy), 68, 3)
-            pygame.draw.circle(world_surface, (25, 45, 50), (spx, spy), 42)
+            if sprite_spawn:
+                world_surface.blit(sprite_spawn, (spx - 48, spy - 48))
+            else:
+                pygame.draw.circle(world_surface, (30, 65, 65), (spx, spy), 48)
+                pygame.draw.circle(world_surface, (42, 157, 143), (spx, spy), 48, 3)
             lbl_sp = font_accion.render(nombres_spawns[idx], True, (170, 220, 210))
-            world_surface.blit(lbl_sp, (spx - lbl_sp.get_width() // 2, spy + 74))
+            world_surface.blit(lbl_sp, (spx - lbl_sp.get_width() // 2, spy + 52))
 
-        # Dibujar Zona de Extraccion y Reactor Central en (1800, 1300) - CA-07.3 y CA-07.5
+        # C. Zona de Extraccion y Reactor Central en (1800, 1300) mediante Sprites
         rx, ry = REACTOR_CENTER
-        pygame.draw.circle(world_surface, (20, 50, 68), (rx, ry), REACTOR_EXTRACTION_RADIUS)
-        pygame.draw.circle(world_surface, (0, 180, 216), (rx, ry), REACTOR_EXTRACTION_RADIUS, 3)
+        sprite_ring = obtener_sprite_entorno("extraction_ring", (360, 360))
+        if sprite_ring:
+            world_surface.blit(sprite_ring, (rx - 180, ry - 180))
+        else:
+            pygame.draw.circle(world_surface, (20, 50, 68), (rx, ry), REACTOR_EXTRACTION_RADIUS)
+            pygame.draw.circle(world_surface, (0, 180, 216), (rx, ry), REACTOR_EXTRACTION_RADIUS, 3)
 
-        # Nucleo solido del Reactor Central
-        pygame.draw.circle(world_surface, (0, 119, 182), (rx, ry), REACTOR_COLLISION_RADIUS)
-        pygame.draw.circle(world_surface, (0, 235, 255), (rx, ry), REACTOR_COLLISION_RADIUS, 4)
-        pygame.draw.circle(world_surface, (180, 248, 255), (rx, ry), 46)
+        sprite_reactor = obtener_sprite_entorno("reactor_core", (256, 256))
+        if sprite_reactor:
+            world_surface.blit(sprite_reactor, (rx - 128, ry - 128))
+        else:
+            pygame.draw.circle(world_surface, (0, 119, 182), (rx, ry), REACTOR_COLLISION_RADIUS)
+            pygame.draw.circle(world_surface, (0, 235, 255), (rx, ry), REACTOR_COLLISION_RADIUS, 4)
 
         lbl_reac = font_reactor.render("REACTOR CENTRAL (+40 PTS/SEG)", True, (255, 255, 255))
-        world_surface.blit(lbl_reac, (rx - lbl_reac.get_width() // 2, ry - lbl_reac.get_height() // 2))
+        world_surface.blit(lbl_reac, (rx - lbl_reac.get_width() // 2, ry - 146))
 
-        # Dibujar Muros y Pasillos de la Estacion
+        # D. Muros de Plomo Blindado mediante Sprites
+        sprite_muro = obtener_sprite_entorno("muro_plomo")
         for muro in muros_arena:
-            pygame.draw.rect(world_surface, (52, 60, 78), muro)
-            pygame.draw.rect(world_surface, (88, 100, 126), muro, 2)
+            if sprite_muro:
+                mw_step, mh_step = sprite_muro.get_size()
+                for mx in range(muro.left, muro.right, mw_step):
+                    for my in range(muro.top, muro.bottom, mh_step):
+                        world_surface.blit(sprite_muro, (mx, my))
+                pygame.draw.rect(world_surface, (20, 24, 32), muro, 2)
+            else:
+                pygame.draw.rect(world_surface, (52, 60, 78), muro)
+                pygame.draw.rect(world_surface, (88, 100, 126), muro, 2)
 
-        # Dibujar Jugadores y Feedback Funcional del 5to Boton (US-14)
+        # E. Jugadores (Trajes Hazmat) y Particulas de Extraccion Animadas (US-14)
         for jug in jugadores:
             j_rect = jug["rect"]
-            color_rgb = hex_to_rgb(jug["color"])
+            color_hex = jug.get("color", "#E63946")
+            color_rgb = hex_to_rgb(color_hex)
+            esta_extrayendo = jug.get("extrayendo", False)
+            dir_jug = jug.get("direccion", "down")
 
-            if jug["extrayendo"]:
-                pygame.draw.circle(world_surface, color_rgb, j_rect.center, 48, 5)
-                pygame.draw.circle(world_surface, (255, 255, 255), j_rect.center, 52, 2)
-
+            # Si el jugador extrae en el Reactor, dibujar particulas de energia radiactiva verde
+            if esta_extrayendo:
                 en_reactor = esta_en_zona_extraccion(j_rect)
+                if en_reactor:
+                    # Flujo de 3 particulas animadas entre el Reactor y el jugador
+                    for frac in (0.28, 0.58, 0.88):
+                        px_part = int(rx + (j_rect.centerx - rx) * frac)
+                        py_part = int(ry + (j_rect.centery - ry) * frac)
+                        part_surf = obtener_frame_particula(t_offset=frac)
+                        if part_surf:
+                            world_surface.blit(part_surf, (px_part - 16, py_part - 16))
+
                 txt_estado = "[EXTRAYENDO +40 PTS/S]" if en_reactor else "[ACCION ACTIVA]"
-                lbl_ext = font_accion.render(txt_estado, True, color_rgb)
+                lbl_ext = font_accion.render(txt_estado, True, (57, 255, 20) if en_reactor else color_rgb)
                 bg_ext = pygame.Rect(
                     j_rect.centerx - lbl_ext.get_width() // 2 - 6,
                     j_rect.bottom + 8,
@@ -395,18 +471,29 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
                     lbl_ext.get_height() + 4,
                 )
                 pygame.draw.rect(world_surface, (15, 18, 24), bg_ext, border_radius=4)
-                pygame.draw.rect(world_surface, color_rgb, bg_ext, 1, border_radius=4)
+                pygame.draw.rect(world_surface, (57, 255, 20) if en_reactor else color_rgb, bg_ext, 1, border_radius=4)
                 world_surface.blit(lbl_ext, (bg_ext.x + 6, bg_ext.y + 2))
 
+            # Dibujar el Sprite del Operador Hazmat segun color y direccion
+            sprite_char = None
             if jug["es_local"] and avatar_img_surface is not None:
-                scaled_av = pygame.transform.smoothscale(avatar_img_surface, (j_rect.width, j_rect.height))
-                world_surface.blit(scaled_av, j_rect)
+                sprite_char = pygame.transform.smoothscale(avatar_img_surface, (j_rect.width, j_rect.height))
+            else:
+                sprite_char = obtener_sprite_personaje(
+                    color_hex=color_hex,
+                    direccion=dir_jug,
+                    extrayendo=esta_extrayendo,
+                    size=(j_rect.width, j_rect.height),
+                )
+
+            if sprite_char:
+                world_surface.blit(sprite_char, j_rect)
             else:
                 pygame.draw.rect(world_surface, color_rgb, j_rect, border_radius=6)
 
-            borde_w = 3 if jug["es_local"] else 1
-            borde_c = (255, 255, 255) if jug["es_local"] else (20, 20, 20)
-            pygame.draw.rect(world_surface, borde_c, j_rect, borde_w, border_radius=6)
+            # Indicador de jugador local (resplandor blanco tenue)
+            if jug["es_local"]:
+                pygame.draw.rect(world_surface, (255, 255, 255), j_rect, 2, border_radius=6)
 
             lbl_n = font_nombre.render(jug["nombre"], True, (255, 255, 255))
             world_surface.blit(lbl_n, (j_rect.centerx - lbl_n.get_width() // 2, j_rect.top - lbl_n.get_height() - 6))
@@ -466,7 +553,7 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
         texto_contador = (
             f"Mov: {seg_mov}s (x10 = {seg_mov * 10} pts)  |  "
             f"Reactor: {seg_reac}s (x40 = {seg_reac * 40} pts)  |  "
-            f"TOTAL: {pts_tot} / {puntos_meta} pts (META)  |  [F4] +50 pts (Prueba)"
+            f"TOTAL: {pts_tot} / {puntos_meta} pts (META)  |  [CONFIG / PAUSA: ESC]"
         )
         lbl_guia = font_guia.render(texto_contador, True, (233, 196, 106))
         guia_bg = pygame.Rect(int(16 * sx), h - int(44 * sy), lbl_guia.get_width() + 24, int(32 * sy))
@@ -564,6 +651,56 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
             )
 
         # =====================================================================
+        # 5.B MODAL DE CONFIGURACION / PAUSA EN MEDIO DE LA PARTIDA (2 OPCIONES)
+        # =====================================================================
+        btn_pausa_rects = []
+        if menu_pausa_activo and not partida_finalizada:
+            overlay_pausa = pygame.Surface((w, h), pygame.SRCALPHA)
+            overlay_pausa.fill((8, 12, 18, 225))
+            screen.blit(overlay_pausa, (0, 0))
+
+            pw = min(w - 40, int(460 * sx))
+            ph = min(h - 40, int(300 * sy))
+            modal_pausa = pygame.Rect(w // 2 - pw // 2, h // 2 - ph // 2, pw, ph)
+            pygame.draw.rect(screen, (22, 27, 38), modal_pausa, border_radius=12)
+            pygame.draw.rect(screen, (42, 157, 143), modal_pausa, 3, border_radius=12)
+
+            f_p_tit = pygame.font.SysFont("Segoe UI", max(18, int(22 * sy)), bold=True)
+            f_p_sub = pygame.font.SysFont("Segoe UI", max(11, int(13 * sy)))
+            f_p_btn = pygame.font.SysFont("Segoe UI", max(13, int(16 * sy)), bold=True)
+
+            t_pt = f_p_tit.render("CONFIGURACION DE PARTIDA", True, (233, 196, 106))
+            t_ps = f_p_sub.render("Juego en pausa - Selecciona una opcion con el mando:", True, (190, 200, 215))
+            screen.blit(t_pt, (modal_pausa.centerx - t_pt.get_width() // 2, modal_pausa.y + int(20 * sy)))
+            screen.blit(t_ps, (modal_pausa.centerx - t_ps.get_width() // 2, modal_pausa.y + int(48 * sy)))
+
+            opciones_pausa = [
+                ("1. REANUDAR", (42, 157, 143)),
+                ("2. ABANDONAR PARTIDA", (230, 57, 70)),
+            ]
+            bw = int(380 * sx)
+            bh = int(48 * sy)
+            b_start_y = modal_pausa.y + int(85 * sy)
+
+            for idx_op, (texto_op, col_base) in enumerate(opciones_pausa):
+                by = b_start_y + idx_op * (bh + int(16 * sy))
+                b_rect = pygame.Rect(modal_pausa.centerx - bw // 2, by, bw, bh)
+                btn_pausa_rects.append(b_rect)
+
+                es_foco = (opcion_pausa_idx == idx_op)
+                col_fondo = col_base if es_foco else (30, 35, 48)
+                col_borde = (255, 255, 255) if es_foco else (65, 75, 95)
+                pygame.draw.rect(screen, col_fondo, b_rect, border_radius=8)
+                pygame.draw.rect(screen, col_borde, b_rect, 3 if es_foco else 1, border_radius=8)
+
+                prefijo = ">> " if es_foco else "   "
+                lbl_b = f_p_btn.render(f"{prefijo}{texto_op}", True, (255, 255, 255))
+                screen.blit(lbl_b, (b_rect.centerx - lbl_b.get_width() // 2, b_rect.centery - lbl_b.get_height() // 2))
+
+            t_pie = f_p_sub.render("[UP/DOWN] Mover  |  [ACCION / ESPACIO] Confirmar  |  [ESC] Salir", True, (160, 175, 190))
+            screen.blit(t_pie, (modal_pausa.centerx - t_pie.get_width() // 2, modal_pausa.bottom - int(24 * sy)))
+
+        # =====================================================================
         # 6. EVENTOS DE VENTANA
         # =====================================================================
         for event in pygame.event.get():
@@ -574,13 +711,50 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
                 screen = pygame.display.set_mode((max(800, event.w), max(540, event.h)), pygame.RESIZABLE)
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    accion_salida = "lobby"
-                    corriendo = False
-                elif event.key == pygame.K_F4 and not partida_finalizada:
-                    # Atajo de prueba local para alcanzar rapidamente la meta de puntos
-                    jugador_local["puntos"] += 50
+                    if not partida_finalizada:
+                        menu_pausa_activo = not menu_pausa_activo
+                        opcion_pausa_idx = 0
+                    else:
+                        accion_salida = "lobby"
+                        corriendo = False
+                elif menu_pausa_activo:
+                    if event.key in (pygame.K_UP, pygame.K_w):
+                        opcion_pausa_idx = 0
+                    elif event.key in (pygame.K_DOWN, pygame.K_s):
+                        opcion_pausa_idx = 1
+                    elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
+                        if opcion_pausa_idx == 0:
+                            menu_pausa_activo = False
+                        elif opcion_pausa_idx == 1:
+                            otros = [j for j in jugadores if not j.get("es_local", False)]
+                            if len(otros) == 1:
+                                partida_finalizada = True
+                                jugador_ganador = otros[0]
+                                accion_salida = "victoria"
+                                corriendo = False
+                            else:
+                                accion_salida = "lobby"
+                                corriendo = False
+                            menu_pausa_activo = False
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                if partida_finalizada and btn_volver_victoria_rect and btn_volver_victoria_rect.collidepoint(event.pos):
+                if menu_pausa_activo:
+                    for idx_b, b_rect in enumerate(btn_pausa_rects):
+                        if b_rect.collidepoint(event.pos):
+                            if idx_b == 0:
+                                menu_pausa_activo = False
+                            elif idx_b == 1:
+                                otros = [j for j in jugadores if not j.get("es_local", False)]
+                                if len(otros) == 1:
+                                    partida_finalizada = True
+                                    jugador_ganador = otros[0]
+                                    accion_salida = "victoria"
+                                    corriendo = False
+                                else:
+                                    accion_salida = "lobby"
+                                    corriendo = False
+                                menu_pausa_activo = False
+                            break
+                elif partida_finalizada and btn_volver_victoria_rect and btn_volver_victoria_rect.collidepoint(event.pos):
                     accion_salida = "lobby"
                     corriendo = False
 

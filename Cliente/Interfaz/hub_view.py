@@ -4,6 +4,8 @@ Punto de encuentro tras iniciar sesion.
 Contiene: Jugar, Perfil, Configuracion y Salir.
 """
 import customtkinter as ctk
+from pathlib import Path
+from PIL import Image
 from Cliente.Interfaz.Components.header_avatar import HeaderAvatar
 from Cliente.Interfaz.Components.ui_helpers import (
     COLOR_PANEL, COLOR_PRIMARIO, COLOR_PRIMARIO_HOVER,
@@ -40,6 +42,24 @@ class HubView(ctk.CTk):
         super().__init__()
         self.controller = controller
 
+        # Helper para cargar iconos de UI en CustomTkinter
+        def _get_ui_icon(nombre_archivo, size=(24, 24)):
+            p = Path(__file__).resolve().parent.parent / "Recursos" / "Sprites" / "UI" / nombre_archivo
+            if p.exists():
+                try:
+                    pil_img = Image.open(str(p))
+                    return ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=size)
+                except Exception:
+                    pass
+            return None
+
+        self.img_logo = _get_ui_icon("logo_battle_arena.png", size=(260, 86))
+        self.ic_jugar = _get_ui_icon("icon_jugar.png", size=(24, 24))
+        self.ic_avatar = _get_ui_icon("icon_avatar.png", size=(24, 24))
+        self.ic_perfil = _get_ui_icon("icon_perfil.png", size=(24, 24))
+        self.ic_audio = _get_ui_icon("icon_audio.png", size=(24, 24))
+        self.ic_salir = _get_ui_icon("icon_salir.png", size=(22, 22))
+
         self.title("Battle Arena - Menu Principal")
         adaptar_ventana_ctk(self, porcentaje_w=0.40, porcentaje_h=0.70, min_w=480, min_h=580)
         self.resizable(True, True)
@@ -58,69 +78,83 @@ class HubView(ctk.CTk):
         self.menu_frame = ctk.CTkFrame(self, fg_color=COLOR_PANEL, corner_radius=12)
         self.menu_frame.pack(padx=35, pady=30, fill="both", expand=True)
 
-        ctk.CTkLabel(
-            self.menu_frame,
-            text="CENTRO DE OPERACIONES",
-            font=("Segoe UI", 18, "bold"),
-            text_color=COLOR_TEXTO,
-        ).pack(pady=(25, 20))
+        # Logotipo oficial del juego mediante Sprite
+        if self.img_logo:
+            ctk.CTkLabel(self.menu_frame, image=self.img_logo, text="").pack(pady=(15, 10))
+        else:
+            ctk.CTkLabel(
+                self.menu_frame,
+                text="CENTRO DE OPERACIONES",
+                font=("Segoe UI", 18, "bold"),
+                text_color=COLOR_TEXTO,
+            ).pack(pady=(20, 15))
 
         # 1. Jugar
         ctk.CTkButton(
             self.menu_frame,
-            text="JUGAR",
+            text="  JUGAR",
+            image=self.ic_jugar,
+            compound="left",
             width=280,
             height=44,
             font=("Segoe UI", 14, "bold"),
             fg_color=COLOR_PRIMARIO,
             hover_color=COLOR_PRIMARIO_HOVER,
             command=self.controller.mostrar_jugar,
-        ).pack(pady=10)
+        ).pack(pady=8)
 
         # 2. Seleccionar Avatar (US-06)
         ctk.CTkButton(
             self.menu_frame,
-            text="SELECCIONAR AVATAR",
+            text="  SELECCIONAR AVATAR",
+            image=self.ic_avatar,
+            compound="left",
             width=280,
             height=42,
             font=("Segoe UI", 13, "bold"),
             fg_color="#2A9D8F",
             hover_color="#21867A",
             command=self.controller.mostrar_avatar_select,
-        ).pack(pady=10)
+        ).pack(pady=8)
 
-        # 2. Perfil
+        # 3. Perfil
         ctk.CTkButton(
             self.menu_frame,
-            text="PERFIL",
+            text="  PERFIL DE PILOTO",
+            image=self.ic_perfil,
+            compound="left",
             width=280,
             height=42,
             font=("Segoe UI", 13),
             fg_color=COLOR_SECUNDARIO,
             hover_color=COLOR_SECUNDARIO_HOVER,
             command=self.controller.mostrar_perfil,
-        ).pack(pady=10)
+        ).pack(pady=8)
 
-        # 3. Settings (Configuracion de Musica)
+        # 4. Settings (Configuracion de Musica)
         ctk.CTkButton(
             self.menu_frame,
-            text="CONFIGURACION DE AUDIO",
+            text="  CONFIGURACION DE AUDIO",
+            image=self.ic_audio,
+            compound="left",
             width=280,
             height=42,
             font=("Segoe UI", 13),
             fg_color=COLOR_SECUNDARIO,
             hover_color=COLOR_SECUNDARIO_HOVER,
             command=lambda: self.controller.mostrar_settings(origen="hub"),
-        ).pack(pady=10)
+        ).pack(pady=8)
 
-        # 4. Salir
+        # 5. Salir
         ctk.CTkButton(
             self.menu_frame,
-            text="SALIR DEL JUEGO",
+            text="  SALIR DEL JUEGO",
+            image=self.ic_salir,
+            compound="left",
             width=280,
             height=38,
             font=("Segoe UI", 12),
             fg_color=COLOR_PELIGRO,
             hover_color=COLOR_PELIGRO_HOVER,
             command=self.controller.cerrar_aplicacion,
-        ).pack(pady=(25, 10))
+        ).pack(pady=(20, 10))

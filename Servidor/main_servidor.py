@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 from Servidor.adapters.json_repository import JsonRepository
 from Servidor.use_cases.auth_service import AuthService
@@ -17,7 +18,20 @@ def main():
 
     # Crear adaptadores y casos de uso
     repo = JsonRepository(ruta)
-    mailer = ConsolaMailer()
+    load_dotenv(BASE.parent / ".env")
+    
+    if os.getenv("SMTP_USER") and os.getenv("SMTP_PASS"):
+        mailer = SmtpMailer(
+            os.getenv("SMTP_HOST", "smtp.gmail.com"),
+            int(os.getenv("SMTP_PORT", "465")),
+            os.getenv("SMTP_USER"),
+            os.getenv("SMTP_PASS"),
+        )
+        print("Mailer en uso: SmtpMailer", flush=True)
+    else:
+        mailer = ConsolaMailer()
+        print("Sin credenciales SMTP: usando ConsolaMailer", flush=True)
+
     auth = AuthService(repo, mailer)
     # Traduce la acción del mensaje
     def manejar(msg: dict, sesion: dict) -> dict:
@@ -26,10 +40,6 @@ def main():
         if accion == "register":
             return auth.registrar(msg.get("email", ""), msg.get("username", ""), msg.get("password", ""))
 
-<<<<<<< HEAD
-
-=======
->>>>>>> Int4_auth_json
         if accion == "verify":
             return auth.verificar(msg.get("email", ""), msg.get("code", ""))
 
@@ -38,10 +48,6 @@ def main():
                 if resp["ok"]:
                     sesion["email"] = resp["email"]
                 return resp
-<<<<<<< HEAD
-    
-
-=======
         if accion == "me":
             if "email" not in sesion:
                 return {"ok": False, "msg": "Debes iniciar sesión"}
@@ -54,7 +60,6 @@ def main():
             return auth.restablecer_password(
                 msg.get("email", ""), msg.get("code", ""), msg.get("new_password", "")
             )
->>>>>>> Int4_auth_json
         # Aquí se van sumando: verify, login, me, forgot, reset
         return {"ok": False, "msg": "Acción desconocida"}
 

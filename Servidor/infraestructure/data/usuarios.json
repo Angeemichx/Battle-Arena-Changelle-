@@ -18,6 +18,7 @@
     "reset_code": null,
     "reset_expires": null,
     "created_at": "2026-10-18T09:00:19.341420"
+<<<<<<< HEAD
   },
   "victoriaanaaraya@gmail.com": {
     "username": "Ana",
@@ -28,5 +29,7 @@
     "reset_code": null,
     "reset_expires": null,
     "created_at": "2026-10-19T21:53:54.414302"
+=======
+>>>>>>> 6e9ed7205a399e6da1602decddd62f0a33400cd9
   }
 }

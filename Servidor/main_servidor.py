@@ -25,6 +25,7 @@ def main():
         if accion == "register":
             return auth.registrar(msg.get("email", ""), msg.get("username", ""), msg.get("password", ""))
 
+<<<<<<< HEAD
         if accion == "verify":
             return auth.verificar(msg.get("email", ""), msg.get("code", ""))
 
@@ -34,6 +35,8 @@ def main():
                     sesion["email"] = resp["email"]
                 return resp
     
+=======
+>>>>>>> 6e9ed7205a399e6da1602decddd62f0a33400cd9
         # Aquí se van sumando: verify, login, me, forgot, reset
         return {"ok": False, "msg": "Acción desconocida"}
 

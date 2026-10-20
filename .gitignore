@@ -15,10 +15,20 @@ error_servidor.log
 # Sistema
 .DS_Store
 Thumbs.db
+.env
 
 # IDE
 .vscode/
 .idea/
 
+<<<<<<< HEAD
 # Configuración local de partida (se genera al jugar)
 Cliente/Recursos/ultima_configuracion.json
+=======
+# Datos del servidor 
+Servidor/infraestructure/data/*.json
+Servidor/infraestructure/data/*.tmp
+
+# Pruebas
+.pytest_cache/
+>>>>>>> Int4_auth_json

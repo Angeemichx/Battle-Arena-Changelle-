@@ -1,18 +1,23 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
-
 trigger:
-- main
+  branches:
+    include:
+      - main
+
+pr:
+  branches:
+    include:
+      - main
 
 pool:
-  vmImage: ubuntu-24.04
+  vmImage: ubuntu-latest
 
 steps:
-- script: echo Hello, world!
-  displayName: 'Run a one-line script'
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: '3.11'
+    displayName: Usar Python 3.11
 
+<<<<<<< HEAD
 - script: |
     echo Add other tasks to build, test, and deploy your project.
     echo See https://aka.ms/yaml
@@ -22,3 +27,21 @@ steps:
     python3 -m pip install pytest pygame-ce
     SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy python3 -m pytest Cliente/Inputs/Tests Cliente/Config/Tests -q
   displayName: 'Pruebas unitarias del cliente (entrada y configuracion)'
+=======
+steps:
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: '3.11'
+    displayName: Usar Python 3.11
+
+  - script: |
+      python -m pip install --upgrade pip
+      python -m pip install -r Servidor/requirements.txt pytest
+    displayName: Instalar dependencias
+
+  - script: python -m pytest Servidor/pruebas/prueba_auth.py -v
+    displayName: Pruebas de autenticación
+
+  - script: docker build -f Servidor/Dockerfile -t battle-arena-servidor:$(Build.BuildId) .
+    displayName: Construir imagen Docker
+>>>>>>> Int4_auth_json

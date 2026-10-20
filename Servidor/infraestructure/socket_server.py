@@ -1,29 +1,40 @@
 import socket
 import threading
 import json
+import time
 from Servidor.domain.jugador import Jugador
 from Servidor.domain.partida import Partida
 
-HOST = "0.0.0.0"
-PUERTO = 5555
 
 #Servidor TCP para aceptar clientes y sincronizar su estado
 
 class ServidorJuego:
-    def __init__(self, limite_puntos: int = 50):
+    def __init__(self, host, port, manejar):
+        self.host = host
+        self.port = port
+        self.manejar = manejar
         self.socket_servidor = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket_servidor.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.clientes={}
+<<<<<<< HEAD
+        self.sesiones = {}
+=======
+>>>>>>> 6e9ed7205a399e6da1602decddd62f0a33400cd9
         self.lock = threading.Lock()
-        self.partida = Partida(id_partida="partida_1", limite_puntos=limite_puntos)
+        self.partida = Partida(id_partida="partida_1", limite_puntos=50)
         self.siguiente_id = 1 
 
     #Arrancar Servidor y quedarse escuchando conexiones
 
-    def iniciar(self):
-        self.socket_servidor.bind((HOST, PUERTO))
+    def run(self):
+        self.socket_servidor.bind((self.host, self.port))
         self.socket_servidor.listen(2)
-        print(f"[SERVIDOR] Escuchando en {HOST}:{PUERTO}")
+        print(f"[SERVIDOR] Escuchando en {self.host}:{self.port}")
+
+        #Agregar hilo para revisar el tiempo en cada segundo que transcurre
+        hilo_tiempo = threading.Thread(target=self._reloj_partida)
+        hilo_tiempo.daemon = True
+        hilo_tiempo.start()
 
         while True:
             socket_cliente, direccion = self.socket_servidor.accept()
@@ -95,6 +106,10 @@ class ServidorJuego:
                         del self.clientes[id_jugador]
                     if id_jugador in self.partida.jugadores:
                         del self.partida.jugadores[id_jugador]
+<<<<<<< HEAD
+                    self.sesiones.pop(id_jugador, None)
+=======
+>>>>>>> 6e9ed7205a399e6da1602decddd62f0a33400cd9
 
                 try:
                     socket_cliente.close()
@@ -121,8 +136,15 @@ class ServidorJuego:
             return
 
         tipo = mensaje.get("tipo")
+        accion = mensaje.get("action")
 
-        if tipo == "movimiento":
+        if tipo == "configurar_partida":
+            minutos = mensaje.get("minutos", 5)
+            self.partida.iniciar_cronometro(minutos)
+            print (f"[SERVIDOR] Partida configurada para {minutos} minutos.")
+            self._broadcast(self.partida.estado_actual())
+
+        elif tipo == "movimiento":
             dx = mensaje.get("dx", 0)
             dy = mensaje.get("dy", 0)
             with self.lock:
@@ -137,6 +159,17 @@ class ServidorJuego:
                 "tipo": "accion",
                 "jugador": id_jugador,
                 "mensaje": mensaje.get("mensaje", "¡Acción!"),})
+
+	#Manejo de la autentificación
+
+        elif accion:
+<<<<<<< HEAD
+            sesion = self.sesiones.setdefault(id_jugador, {})
+=======
+>>>>>>> 6e9ed7205a399e6da1602decddd62f0a33400cd9
+            with self.lock:
+                respuesta = self.manejar(mensaje, {})
+            self._enviar_a(self.clientes.get(id_jugador), respuesta)
 
     #Enviar mensaje a todos los clientes que estén conectados 
 
@@ -156,3 +189,11 @@ class ServidorJuego:
             socket_cliente.sendall(datos)
         except Exception:
             pass
+
+    def _reloj_partida(self):
+        while True:
+            time.sleep(1) # Espera 1 segundo
+            if self.partida.activa:
+                self.partida.verificar_tiempo()
+                # Llamar al broadcast
+                self._broadcast(self.partida.estado_actual())

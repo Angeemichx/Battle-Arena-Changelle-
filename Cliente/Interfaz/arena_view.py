@@ -554,10 +554,20 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
         seg_mov = jugador_local["segundos_movimiento"]
         seg_reac = jugador_local["segundos_reactor"]
         pts_tot = jugador_local["puntos"]
+
+        if modo_fin == "puntos":
+            str_modalidad = f"Modalidad: Meta por Puntos ({puntos_meta} pts)"
+        elif modo_fin == "tiempo":
+            str_modalidad = f"Modalidad: Limite por Tiempo ({tiempo_partida_min}m)"
+        else:
+            str_modalidad = f"Modalidad: Estandar ({tiempo_partida_min}m | {puntos_meta} pts)"
+
         texto_contador = (
             f"Mov: {seg_mov}s (x10 = {seg_mov * 10} pts)  |  "
             f"Reactor: {seg_reac}s (x40 = {seg_reac * 40} pts)  |  "
-            f"TOTAL: {pts_tot} / {puntos_meta} pts (META)  |  [CONFIG / PAUSA: ESC]"
+            f"Total: {pts_tot} pts  |  "
+            f"{str_modalidad}  |  "
+            f"[CONFIG / PAUSA: ESC]"
         )
         lbl_guia = font_guia.render(texto_contador, True, (233, 196, 106))
         guia_bg = pygame.Rect(int(16 * sx), h - int(44 * sy), lbl_guia.get_width() + 24, int(32 * sy))

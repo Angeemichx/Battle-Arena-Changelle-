@@ -514,7 +514,7 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
             (WORLD_WIDTH, WORLD_HEIGHT),
             muros_arena,
             REACTOR_CENTER,
-            avatar_img_surface,
+            avatar_img_surface=None,
         )
 
         # Banner de Desempate Automatico (+2 min - CA-16.4)
@@ -574,9 +574,11 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
             av_size = int(68 * sy)
             av_rect = pygame.Rect(modal_rect.centerx - av_size // 2, modal_rect.y + int(68 * sy), av_size, av_size)
             ganador_rgb = hex_to_rgb(jugador_ganador.get("color", "#E63946"))
-            if jugador_ganador.get("es_local") and avatar_img_surface is not None:
-                scaled_g = pygame.transform.smoothscale(avatar_img_surface, (av_size, av_size))
-                screen.blit(scaled_g, av_rect)
+            sp_ganador = obtener_sprite_personaje(
+                jugador_ganador.get("color", "#E63946"), direccion="down", size=(av_size, av_size)
+            )
+            if sp_ganador:
+                screen.blit(sp_ganador, av_rect)
             else:
                 pygame.draw.rect(screen, ganador_rgb, av_rect, border_radius=10)
             pygame.draw.rect(screen, (255, 255, 255), av_rect, 3, border_radius=10)
@@ -750,7 +752,7 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
     if accion_salida == "victoria":
         from Cliente.Interfaz.victoria_view import mostrar_pantalla_victoria
         accion_salida = mostrar_pantalla_victoria(
-            controller, jugador_ganador, jugadores, screen, avatar_img_surface, input_manager
+            controller, jugador_ganador, jugadores, screen, None, input_manager
         )
 
     controller.partida_en_curso = False  # la configuracion vuelve a ser editable

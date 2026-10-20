@@ -446,7 +446,7 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
         # =====================================================================
         screen.fill((18, 20, 27))
 
-        dibujar_hud_lobby(screen, controller, jugadores, avatar_img_surface)
+        dibujar_hud_lobby(screen, controller, jugadores)
 
         # Zona Caminable de la Nave
         pygame.draw.rect(screen, (26, 30, 40), zona_caminable, border_radius=8)

@@ -72,7 +72,12 @@ def dibujar_hud_lobby(
         scaled_img = pygame.transform.smoothscale(avatar_img_surface, (av_size, av_size))
         surface.blit(scaled_img, av_rect)
     else:
-        pygame.draw.rect(surface, hex_to_rgb(controller.avatar_color), av_rect, border_radius=5)
+        from Cliente.Interfaz.Components.sprite_loader import obtener_sprite_personaje
+        sp_mini = obtener_sprite_personaje(controller.avatar_color, direccion="down", size=(av_size, av_size))
+        if sp_mini is not None:
+            surface.blit(sp_mini, av_rect)
+        else:
+            pygame.draw.rect(surface, hex_to_rgb(controller.avatar_color), av_rect, border_radius=5)
     pygame.draw.rect(surface, (255, 255, 255), av_rect, 2, border_radius=5)
 
     rol_str = "Anfitrion" if controller.es_creador else "Invitado"
@@ -154,7 +159,12 @@ def dibujar_hud_arena(
         scaled = pygame.transform.smoothscale(avatar_img_surface, (av_size, av_size))
         surface.blit(scaled, av_rect)
     else:
-        pygame.draw.rect(surface, hex_to_rgb(controller.avatar_color), av_rect, border_radius=4)
+        from Cliente.Interfaz.Components.sprite_loader import obtener_sprite_personaje
+        sp_mini = obtener_sprite_personaje(controller.avatar_color, direccion="down", size=(av_size, av_size))
+        if sp_mini is not None:
+            surface.blit(sp_mini, av_rect)
+        else:
+            pygame.draw.rect(surface, hex_to_rgb(controller.avatar_color), av_rect, border_radius=4)
     pygame.draw.rect(surface, (255, 255, 255), av_rect, 2, border_radius=4)
 
     lbl_u = font_bold.render(str(controller.usuario_actual), True, (255, 255, 255))

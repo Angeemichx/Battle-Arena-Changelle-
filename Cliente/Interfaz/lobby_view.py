@@ -324,6 +324,16 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                             "extrayendo": False,
                         })
 
+        # Resolucion automatica de duplicados de color al unirse (CA-10.3)
+        if hasattr(controller, "resolver_conflicto_color"):
+            color_resuelto = controller.resolver_conflicto_color(jugadores)
+            if color_resuelto:
+                alerta_rechazo_lobby = (
+                    f"COLOR REASIGNADO: Tu color original estaba en uso. "
+                    f"Se te asigno: {color_resuelto}."
+                )
+                alerta_rechazo_expira = ahora + 4.5
+
         hitbox_size = max(34, int(48 * min(sx, sy)))
         for jug in jugadores:
             if jug.get("pos_x") is None or jug.get("pos_y") is None or ventana_redimensionada:

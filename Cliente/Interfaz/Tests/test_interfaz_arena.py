@@ -360,3 +360,57 @@ def test_avatar_select_view_cambio_color_y_persistencia(tmp_path, monkeypatch):
     assert config_test.exists()
 
     view.destroy()
+
+
+def test_resolver_conflicto_color_duplicado_al_unirse():
+    """
+    Descripcion:
+        Verifica que resolver_conflicto_color detecte cuando el color preferido del
+        jugador local colisiona con el de otro jugador presente en la sala y le asigne
+        automaticamente el siguiente color libre de la paleta (CA-10.3).
+    Entradas:
+        Ninguna.
+    Salidas:
+        None: Verifica que el nuevo color sea diferente y este libre de colisiones.
+    Restricciones:
+        Ninguna.
+    """
+    ctrl = AppController()
+    ctrl.avatar_color = "#E63946"  # Rojo
+
+    # Simulamos que otro jugador ya ocupa el color Rojo (#E63946)
+    jugadores_sala = [
+        {"id": 1, "nombre": "Local", "color": "#E63946", "es_local": True},
+        {"id": 2, "nombre": "Host", "color": "#E63946", "es_local": False},
+    ]
+
+    color_asignado = ctrl.resolver_conflicto_color(jugadores_sala)
+    assert color_asignado is not None
+    assert color_asignado == "Azul"  # Primer color libre tras Rojo
+    assert ctrl.avatar_color == "#1D3557"  # Azul
+    assert jugadores_sala[0]["color"] == "#1D3557"
+
+
+def test_resolver_conflicto_color_sin_colision():
+    """
+    Descripcion:
+        Verifica que resolver_conflicto_color mantenga intacto el color del jugador local
+        cuando ningun otro jugador en la sala ocupa dicho color.
+    Entradas:
+        Ninguna.
+    Salidas:
+        None: Verifica que retorne None y no modifique avatar_color.
+    Restricciones:
+        Ninguna.
+    """
+    ctrl = AppController()
+    ctrl.avatar_color = "#2A9D8F"  # Verde
+
+    jugadores_sala = [
+        {"id": 1, "nombre": "Local", "color": "#2A9D8F", "es_local": True},
+        {"id": 2, "nombre": "Host", "color": "#E63946", "es_local": False},
+    ]
+
+    res = ctrl.resolver_conflicto_color(jugadores_sala)
+    assert res is None
+    assert ctrl.avatar_color == "#2A9D8F"

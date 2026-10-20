@@ -185,6 +185,20 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
             "extrayendo": False,
         })
 
+    # Verificacion de seguridad: garantizar que no se repitan colores entre jugadores (CA-10.3)
+    from Cliente.Interfaz.Components.ui_helpers import COLORES_AVATAR
+    colores_asignados = set()
+    for jug in jugadores:
+        c_actual = str(jug.get("color", "")).strip().upper()
+        if not c_actual or c_actual in colores_asignados:
+            for nom_c, hex_c in COLORES_AVATAR.items():
+                if hex_c.upper() not in colores_asignados:
+                    jug["color"] = hex_c
+                    jug["color_nombre"] = nom_c
+                    c_actual = hex_c.upper()
+                    break
+        colores_asignados.add(c_actual)
+
     jugador_local = jugadores[0]
     avatar_img_surface = _cargar_imagen_avatar(controller.avatar_imagen)
 

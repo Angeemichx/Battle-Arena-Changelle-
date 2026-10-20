@@ -10,11 +10,9 @@ EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 class AuthService:
     def __init__(self, repo):
-<<<<<<< HEAD
-        self.repo = repo
-=======
+
         self.repo = repo       
->>>>>>> 6e9ed7205a399e6da1602decddd62f0a33400cd9
+
 
     def registrar(self, email: str, username: str, password: str) -> dict:
         email = email.strip().lower()
@@ -27,14 +25,11 @@ class AuthService:
         if not username:
             return {"ok": False, "msg": "Usuario requerido"}
 
-<<<<<<< HEAD
-        with self.repo.lock:
-            if self.repo._email(email) or self.repo.user_exists(username):
-=======
+
         # evita que dos registros iguales se crucen
         with self.repo.lock:
             if self.repo.get_by_email(email) or self.repo.username_exists(username):
->>>>>>> 6e9ed7205a399e6da1602decddd62f0a33400cd9
+
                 return {"ok": False, "msg": "Correo o usuario ya registrado"}
 
             codigo = f"{secrets.randbelow(10**6):06d}"
@@ -50,7 +45,7 @@ class AuthService:
 
         return {"ok": True, "msg": "Cuenta creada", "codigo": codigo}
 
-<<<<<<< HEAD
+
     def verificar(self, email: str, codigo: str) -> dict:
         email = email.strip().lower()
         with self.repo.lock:
@@ -71,8 +66,7 @@ class AuthService:
             return {"ok": False, "msg": "Debes verificar tu correo primero"}
         return {"ok": True, "msg": "Bienvenido", "email": email}
 
-=======
->>>>>>> 6e9ed7205a399e6da1602decddd62f0a33400cd9
+
     @staticmethod
     def _password_valida(p: str) -> bool:
         return len(p) >= 8 and any(c.isdigit() for c in p) and any(c.isalpha() for c in p)

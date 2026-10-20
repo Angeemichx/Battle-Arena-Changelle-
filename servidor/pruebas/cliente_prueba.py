@@ -53,10 +53,9 @@ def main():
             print("  a = izquierda d = derecha")
             print("  e = accion    q = salir")
             print("  i = iniciar partida (1 minuto)")
-<<<<<<< HEAD
+
             print("  r = registrar   v = verificar   l = login")
-=======
->>>>>>> 6e9ed7205a399e6da1602decddd62f0a33400cd9
+
             tecla = input(f"[{nombre}] Tecla: ").strip().lower()
 
             if tecla == "q":
@@ -67,7 +66,7 @@ def main():
                 "s": (0, 1),
                 "a": (-1, 0),
                 "d": (1, 0),}
-<<<<<<< HEAD
+
             if tecla in ("r", "v", "l"):
                 email = input("  Correo: ").strip()
                 if tecla == "r":
@@ -83,10 +82,10 @@ def main():
                     msg = {"action": "login", "email": email, "password": clave}
 
             elif tecla in movimientos:
-=======
+
 
             if tecla in movimientos:
->>>>>>> 6e9ed7205a399e6da1602decddd62f0a33400cd9
+
                 dx, dy = movimientos[tecla]
                 msg = {"tipo": "movimiento", "dx": dx, "dy": dy}
             elif tecla == "e":

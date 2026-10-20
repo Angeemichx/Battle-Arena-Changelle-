@@ -6,7 +6,6 @@ Permite elegir entre los 5 colores obligatorios de hitbox o cargar una imagen de
 from __future__ import annotations
 import os
 from pathlib import Path
-import tkinter.filedialog as filedialog
 import customtkinter as ctk
 from PIL import Image
 
@@ -22,32 +21,29 @@ from Cliente.Interfaz.Components.ui_helpers import (
 # =============================================================================
 # Documentacion de Clase: AvatarSelectView
 # Proposito:
-#   Implementar la ventana en CustomTkinter exigida en la especificacion tecnica
-#   para la historia US-06, permitiendo seleccionar uno de los 5 colores base de
-#   la hitbox del avatar o cargar una imagen personalizada desde el almacenamiento local.
+#   Implementar la ventana en CustomTkinter para la seleccion del color del
+#   traje Hazmat y hitbox oficial del jugador entre los 5 colores obligatorios.
 # Contenido:
 #   - Atributos principales: controller (AppController), color_temp (str),
-#     imagen_temp (str | None), preview_frame (CTkFrame) y lbl_info (CTkLabel).
-#   - Metodos: __init__, _actualizar_previsualizacion, _seleccionar_color,
-#     _cargar_imagen_disco, _quitar_imagen_disco y _guardar_y_volver.
+#     preview_box (CTkFrame) y lbl_info (CTkLabel).
+#   - Metodos: __init__, _actualizar_previsualizacion, _seleccionar_color y _guardar_y_volver.
 # =============================================================================
 class AvatarSelectView(ctk.CTk):
     def __init__(self, controller):
         """
         Descripcion:
             Inicializa la ventana de seleccion de avatar adaptada a la resolucion de pantalla,
-            mostrando la previsualizacion en vivo, la paleta de 5 colores y el boton de carga desde disco.
+            mostrando la previsualizacion en vivo del operador Hazmat y la paleta de 5 colores oficiales.
         Entradas:
             controller (AppController): Instancia del controlador maestro de la aplicacion.
         Salidas:
             None: Construye y despliega los widgets de la interfaz grafica.
         Restricciones:
-            controller debe contar con los atributos avatar_color y avatar_imagen.
+            controller debe contar con el atributo avatar_color.
         """
         super().__init__()
         self.controller = controller
         self.color_temp = controller.avatar_color
-        self.imagen_temp = controller.avatar_imagen
 
         self.title("Battle Arena - Seleccion de Avatar")
         adaptar_ventana_ctk(self, porcentaje_w=0.42, porcentaje_h=0.74, min_w=500, min_h=600)
@@ -92,22 +88,22 @@ class AvatarSelectView(ctk.CTk):
 
         ctk.CTkLabel(
             frame,
-            text="Selecciona tu traje Hazmat radiactivo o carga un avatar personalizado.",
+            text="Selecciona el color de tu traje Hazmat de contencion radiactiva.",
             font=("Segoe UI", 11),
             text_color="#8E9AA8",
-        ).pack(pady=(0, 12))
+        ).pack(pady=(0, 14))
 
         # 1. Caja de Previsualizacion en Vivo con Operador Hazmat
         self.preview_box = ctk.CTkFrame(
             frame,
-            width=110,
-            height=110,
+            width=130,
+            height=130,
             fg_color="#181C26",
             corner_radius=10,
             border_width=3,
             border_color=self.color_temp,
         )
-        self.preview_box.pack(pady=8)
+        self.preview_box.pack(pady=12)
         self.preview_box.pack_propagate(False)
 
         self.lbl_preview_img = ctk.CTkLabel(self.preview_box, text="")
@@ -116,14 +112,14 @@ class AvatarSelectView(ctk.CTk):
         self.lbl_info = ctk.CTkLabel(
             frame,
             text=f"Operador Hazmat: {self.controller.obtener_nombre_color(self.color_temp)}",
-            font=("Segoe UI", 12, "bold"),
+            font=("Segoe UI", 13, "bold"),
             text_color="#E9C46A",
         )
-        self.lbl_info.pack(pady=4)
+        self.lbl_info.pack(pady=6)
 
         # 2. Paleta de los 5 colores base con iconos de personajes
         palette_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        palette_frame.pack(pady=10)
+        palette_frame.pack(pady=16)
 
         self._mini_icons = {}
         for nombre, hex_c in COLORES_AVATAR.items():
@@ -149,7 +145,7 @@ class AvatarSelectView(ctk.CTk):
                 image=img_mini,
                 compound="left",
                 width=80,
-                height=34,
+                height=36,
                 fg_color=hex_c,
                 hover_color=hex_c,
                 text_color="#FFFFFF" if nombre != "Amarillo" else "#1A1A1A",
@@ -158,44 +154,17 @@ class AvatarSelectView(ctk.CTk):
             )
             btn.pack(side="left", padx=4)
 
-        # 3. Carga desde Disco
-        actions_frame = ctk.CTkFrame(frame, fg_color="#181A20", corner_radius=8)
-        actions_frame.pack(padx=30, pady=10, fill="x")
-
-        ctk.CTkButton(
-            actions_frame,
-            text="Cargar Avatar desde Disco (.png, .jpg)",
-            width=260,
-            height=34,
-            font=("Segoe UI", 11, "bold"),
-            fg_color=COLOR_PRIMARIO,
-            hover_color=COLOR_PRIMARIO_HOVER,
-            command=self._cargar_imagen_disco,
-        ).pack(pady=(10, 6))
-
-        self.btn_quitar_img = ctk.CTkButton(
-            actions_frame,
-            text="Usar Solo Traje Hazmat Oficial",
-            width=200,
-            height=28,
-            font=("Segoe UI", 10),
-            fg_color="#2B2D42",
-            hover_color="#3B3E5B",
-            command=self._quitar_imagen_disco,
-        )
-        self.btn_quitar_img.pack(pady=(0, 10))
-
-        # 4. Boton Guardar y Aplicar
+        # 3. Boton Guardar y Aplicar
         ctk.CTkButton(
             frame,
             text="GUARDAR Y APLICAR",
             width=240,
-            height=40,
+            height=42,
             font=("Segoe UI", 13, "bold"),
             fg_color=COLOR_EXITO,
             hover_color=COLOR_EXITO_HOVER,
             command=self._guardar_y_volver,
-        ).pack(pady=(12, 10))
+        ).pack(pady=(28, 10))
 
         # Sincronizar visual inicial
         self._actualizar_previsualizacion()
@@ -203,7 +172,7 @@ class AvatarSelectView(ctk.CTk):
     def _actualizar_previsualizacion(self) -> None:
         """
         Descripcion:
-            Refresca el cuadro de previsualizacion con la imagen cargada o con el personaje Hazmat oficial.
+            Refresca el cuadro de previsualizacion con el personaje Hazmat oficial correspondiente al color activo.
         Entradas:
             Ninguna.
         Salidas:
@@ -213,21 +182,7 @@ class AvatarSelectView(ctk.CTk):
         """
         nombre_color = self.controller.obtener_nombre_color(self.color_temp)
 
-        # Caso A: Imagen personalizada elegida por el usuario
-        if self.imagen_temp and os.path.exists(self.imagen_temp):
-            try:
-                pil_img = Image.open(self.imagen_temp).resize((96, 96))
-                ctk_img = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=(96, 96))
-                self.lbl_preview_img.configure(image=ctk_img, text="")
-                self.preview_box.configure(fg_color="#181A20", border_color=self.color_temp)
-                self.lbl_info.configure(
-                    text=f"Color base: {nombre_color} | Imagen: {os.path.basename(self.imagen_temp)}"
-                )
-                return
-            except Exception as e:
-                print(f"[AVATAR_SELECT] No se pudo cargar imagen previa: {e}")
-
-        # Caso B: Sprite oficial del Operador Hazmat segun el color elegido
+        # Sprite oficial del Operador Hazmat segun el color elegido
         ruta_char = (
             Path(__file__).resolve().parent.parent
             / "Recursos"
@@ -237,8 +192,8 @@ class AvatarSelectView(ctk.CTk):
         )
         if ruta_char.exists():
             try:
-                pil_char = Image.open(str(ruta_char)).resize((96, 96), Image.Resampling.NEAREST)
-                ctk_char = ctk.CTkImage(light_image=pil_char, dark_image=pil_char, size=(96, 96))
+                pil_char = Image.open(str(ruta_char)).resize((110, 110), Image.Resampling.NEAREST)
+                ctk_char = ctk.CTkImage(light_image=pil_char, dark_image=pil_char, size=(110, 110))
                 self.lbl_preview_img.configure(image=ctk_char, text="")
                 self.preview_box.configure(fg_color="#181C26", border_color=self.color_temp)
                 self.lbl_info.configure(text=f"Operador Hazmat Activo: {nombre_color} ({self.color_temp})")
@@ -246,7 +201,7 @@ class AvatarSelectView(ctk.CTk):
             except Exception as e:
                 print(f"[AVATAR_SELECT] Error cargando sprite de operador: {e}")
 
-        # Caso C: Respaldo con color plano si no se encuentra el asset
+        # Respaldo con color plano si no se encuentra el asset
         self.lbl_preview_img.configure(image=None, text="")
         self.preview_box.configure(fg_color=self.color_temp, border_color="#FFFFFF")
         self.lbl_info.configure(text=f"Hitbox activa: {nombre_color} ({self.color_temp})")
@@ -265,43 +220,10 @@ class AvatarSelectView(ctk.CTk):
         self.color_temp = hex_color
         self._actualizar_previsualizacion()
 
-    def _cargar_imagen_disco(self) -> None:
-        """
-        Descripcion:
-            Abre el cuadro de dialogo del sistema operativo para seleccionar una imagen de avatar (CA-06.3).
-        Entradas:
-            Ninguna.
-        Salidas:
-            None: Actualiza imagen_temp si el usuario elige un archivo valido.
-        Restricciones:
-            Solo admite formatos de imagen .png, .jpg, .jpeg y .bmp.
-        """
-        ruta = filedialog.askopenfilename(
-            title="Seleccionar Imagen de Avatar",
-            filetypes=[("Imagenes", "*.png;*.jpg;*.jpeg;*.bmp")],
-        )
-        if ruta:
-            self.imagen_temp = ruta
-            self._actualizar_previsualizacion()
-
-    def _quitar_imagen_disco(self) -> None:
-        """
-        Descripcion:
-            Elimina la asociacion a la imagen de disco para volver a usar exclusivamente la hitbox de color.
-        Entradas:
-            Ninguna.
-        Salidas:
-            None: Restablece imagen_temp a None y refresca la vista.
-        Restricciones:
-            Ninguna.
-        """
-        self.imagen_temp = None
-        self._actualizar_previsualizacion()
-
     def _guardar_y_volver(self) -> None:
         """
         Descripcion:
-            Persiste la seleccion del avatar en la sesion y en config_local.json (CA-06.4),
+            Persiste la seleccion del avatar en la sesion y en config_local.json,
             retornando de inmediato al Menu Principal (HubView).
         Entradas:
             Ninguna.
@@ -311,6 +233,6 @@ class AvatarSelectView(ctk.CTk):
             controller debe tener implementado guardar_config_local().
         """
         self.controller.avatar_color = self.color_temp
-        self.controller.avatar_imagen = self.imagen_temp
+        self.controller.avatar_imagen = None
         self.controller.guardar_config_local()
         self.controller.mostrar_hub()

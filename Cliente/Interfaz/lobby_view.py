@@ -134,54 +134,6 @@ def _generar_superficie_minimapa(tipo_mapa: str) -> pygame.Surface:
     return surf
 
 
-def _cargar_imagen_avatar_disco(ruta: str | None) -> pygame.Surface | None:
-    """
-    Descripcion:
-        Carga desde el sistema de archivos una imagen personalizada de avatar (.png/.jpg/.bmp)
-        y la convierte a una superficie con canal alfa lista para mostrarse en Pygame.
-    Entradas:
-        ruta (str | None): Ruta absoluta en disco hacia el archivo de imagen o None.
-    Salidas:
-        pygame.Surface | None: Superficie cargada o None si la ruta no existe o el archivo es invalido.
-    Restricciones:
-        Requiere que pygame.display tenga un modo de video activo para ejecutar convert_alpha().
-    """
-    if not ruta or not os.path.exists(ruta):
-        return None
-    try:
-        return pygame.image.load(ruta).convert_alpha()
-    except Exception:
-        return None
-
-
-def _seleccionar_archivo_imagen() -> str | None:
-    """
-    Descripcion:
-        Abre un cuadro de dialogo nativo del sistema operativo para que el jugador elija
-        una imagen desde su ordenador para usarla como apariencia del avatar (CA-06.3).
-    Entradas:
-        Ninguna.
-    Salidas:
-        str | None: Ruta absoluta del archivo seleccionado o None si el usuario cancelo.
-    Restricciones:
-        Solo permite archivos con extension .png, .jpg, .jpeg o .bmp.
-    """
-    try:
-        from tkinter import Tk, filedialog
-        tk_root = Tk()
-        tk_root.withdraw()
-        tk_root.attributes("-topmost", True)
-        ruta = filedialog.askopenfilename(
-            title="Seleccionar Imagen de Avatar",
-            filetypes=[("Imagenes", "*.png;*.jpg;*.jpeg;*.bmp")],
-        )
-        tk_root.destroy()
-        return ruta if ruta else None
-    except Exception as e:
-        print(f"[AVATAR] Error al abrir selector de archivo: {e}")
-        return None
-
-
 def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> None:
     """
     Descripcion:
@@ -252,7 +204,6 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
         jugadores[0]["pos_x"] = None
         jugadores[0]["pos_y"] = None
 
-    avatar_img_surface = _cargar_imagen_avatar_disco(controller.avatar_imagen)
     minimapa_base = _generar_superficie_minimapa(controller.mapa_seleccionado)
 
     # Estado del modal y alertas notorias
@@ -584,16 +535,12 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
             c_hex = jug.get("color", "#E63946")
             d_jug = jug.get("direccion", "down")
 
-            sp_jug = None
-            if jug["es_local"] and avatar_img_surface is not None:
-                sp_jug = pygame.transform.smoothscale(avatar_img_surface, (j_rect.width, j_rect.height))
-            else:
-                sp_jug = obtener_sprite_personaje(
-                    color_hex=c_hex,
-                    direccion=d_jug,
-                    extrayendo=False,
-                    size=(j_rect.width, j_rect.height),
-                )
+            sp_jug = obtener_sprite_personaje(
+                color_hex=c_hex,
+                direccion=d_jug,
+                extrayendo=False,
+                size=(j_rect.width, j_rect.height),
+            )
 
             if sp_jug:
                 screen.blit(sp_jug, j_rect)
@@ -765,32 +712,6 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                     screen.blit(s_est, (c_rect.centerx - s_est.get_width() // 2, c_rect.bottom - int(26 * sy)))
 
                     rects_modal[f"color_{nombre_c}"] = (c_rect, nombre_c, hex_c, ocupado_por, idx)
-
-                btn_disco = pygame.Rect(
-                    modal_rect.x + int(28 * sx),
-                    cy_box + btn_c_h + int(28 * sy),
-                    int(280 * sx),
-                    int(42 * sy),
-                )
-                pygame.draw.rect(screen, (31, 83, 141), btn_disco, border_radius=6)
-                lbl_d = font_bold.render("Cargar Imagen desde Disco", True, (255, 255, 255))
-                screen.blit(lbl_d, (btn_disco.centerx - lbl_d.get_width() // 2, btn_disco.centery - lbl_d.get_height() // 2))
-                rects_modal["btn_disco"] = btn_disco
-
-                if controller.avatar_imagen:
-                    btn_limpiar_img = pygame.Rect(
-                        btn_disco.right + int(16 * sx),
-                        btn_disco.y,
-                        int(220 * sx),
-                        int(42 * sy),
-                    )
-                    pygame.draw.rect(screen, (70, 50, 60), btn_limpiar_img, border_radius=6)
-                    lbl_li = font_small.render("Usar Solo Hitbox de Color", True, (255, 255, 255))
-                    screen.blit(
-                        lbl_li,
-                        (btn_limpiar_img.centerx - lbl_li.get_width() // 2, btn_limpiar_img.centery - lbl_li.get_height() // 2),
-                    )
-                    rects_modal["btn_limpiar_img"] = btn_limpiar_img
 
             elif pestana_modal == "mapas":
                 if controller.es_creador:
@@ -1055,22 +976,6 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                                         jugador_local["color_nombre"] = nom_c
                                         controller.guardar_config_local()
                                         mensaje_modal = f"Color actualizado a {nom_c}."
-
-                        if rects_modal.get("btn_disco") and rects_modal["btn_disco"].collidepoint(pos):
-                            nueva_ruta = _seleccionar_archivo_imagen()
-                            if nueva_ruta:
-                                img_cargada = _cargar_imagen_avatar_disco(nueva_ruta)
-                                if img_cargada is not None:
-                                    controller.avatar_imagen = nueva_ruta
-                                    avatar_img_surface = img_cargada
-                                    controller.guardar_config_local()
-                                    mensaje_modal = "Imagen de avatar cargada correctamente."
-
-                        if rects_modal.get("btn_limpiar_img") and rects_modal["btn_limpiar_img"].collidepoint(pos):
-                            controller.avatar_imagen = None
-                            avatar_img_surface = None
-                            controller.guardar_config_local()
-                            mensaje_modal = "Usando hitbox de color solido."
 
                     elif pestana_modal == "mapas":
                         for idx in range(len(TIPOS_MAPA)):

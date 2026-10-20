@@ -40,26 +40,6 @@ from Cliente.Interfaz.Components.sprite_loader import (
 )
 
 
-def _cargar_imagen_avatar(ruta: str | None) -> pygame.Surface | None:
-    """
-    Descripcion:
-        Carga desde disco la imagen personalizada del avatar del jugador local y la
-        convierte al formato con canal alfa de Pygame.
-    Entradas:
-        ruta (str | None): Ruta del archivo de imagen (.png/.jpg/.bmp) o None.
-    Salidas:
-        pygame.Surface | None: Superficie de Pygame lista para dibujar o None si falla la carga.
-    Restricciones:
-        Requiere que el modo de video de Pygame ya haya sido inicializado.
-    """
-    if not ruta or not os.path.exists(ruta):
-        return None
-    try:
-        return pygame.image.load(ruta).convert_alpha()
-    except Exception:
-        return None
-
-
 def evaluar_condicion_victoria(
     jugadores: list[dict],
     tiempo_restante: float,
@@ -148,8 +128,8 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
     limites_mundo = pygame.Rect(0, 0, WORLD_WIDTH, WORLD_HEIGHT)
 
     muros_arena = obtener_muros_arena(controller.mapa_seleccionado)
-    reactor_rect = obtener_hitbox_reactor()
-    obstaculos_totales = muros_arena + [reactor_rect]
+    circulo_reactor_colision = (REACTOR_CENTER[0], REACTOR_CENTER[1], REACTOR_COLLISION_RADIUS)
+    obstaculos_totales = muros_arena
 
     jugadores_base = getattr(controller, "jugadores_sala", None)
     if not jugadores_base or len(jugadores_base) < 2:
@@ -207,7 +187,6 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
         colores_asignados.add(c_actual)
 
     jugador_local = jugadores[0]
-    avatar_img_surface = _cargar_imagen_avatar(controller.avatar_imagen)
 
     # Parametros de partida configurados en el Lobby (US-09 / US-16)
     tiempo_partida_min = int(getattr(controller, "tiempo_partida_min", 3))
@@ -307,6 +286,7 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
                         dy_unit * velocidad_jugador,
                         obstaculos_totales,
                         limites_mundo,
+                        circulo_reactor=circulo_reactor_colision,
                     )
                     # Si el jugador se desplazo efectivamente, contar el tiempo en movimiento
                     if jugador_local["rect"].topleft != pos_previa:
@@ -490,16 +470,12 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
                 world_surface.blit(lbl_ext, (bg_ext.x + 6, bg_ext.y + 2))
 
             # Dibujar el Sprite del Operador Hazmat segun color y direccion
-            sprite_char = None
-            if jug["es_local"] and avatar_img_surface is not None:
-                sprite_char = pygame.transform.smoothscale(avatar_img_surface, (j_rect.width, j_rect.height))
-            else:
-                sprite_char = obtener_sprite_personaje(
-                    color_hex=color_hex,
-                    direccion=dir_jug,
-                    extrayendo=esta_extrayendo,
-                    size=(j_rect.width, j_rect.height),
-                )
+            sprite_char = obtener_sprite_personaje(
+                color_hex=color_hex,
+                direccion=dir_jug,
+                extrayendo=esta_extrayendo,
+                size=(j_rect.width, j_rect.height),
+            )
 
             if sprite_char:
                 world_surface.blit(sprite_char, j_rect)

@@ -4,6 +4,7 @@ Pruebas unitarias positivas y negativas para el modulo del Integrante 1
 Autenticacion Estricta, Acceso Admin con deteccion de sesion activa y Condicion de Victoria / Desempate).
 Cumple con el Definition of Done (DoD) del Sprint 2.
 """
+import math
 import pytest
 import pygame
 
@@ -495,3 +496,53 @@ def test_logica_abandonar_partida_con_tres_jugadores_no_declara_ganador():
 
     otros = [j for j in jugadores if not j.get("es_local", False)]
     assert len(otros) >= 2
+
+
+def test_colision_circular_reactor_sin_esquinas_cuadradas():
+    """
+    Descripcion:
+        Verifica que el Reactor Central aplique una colision estrictamente circular
+        en lugar de una caja cuadrada con esquinas ficticias, permitiendo que el jugador
+        se aproxime diagonalmente hasta tocar el radio del circulo sin ser frenado
+        en esquinas lejanas.
+    Entradas:
+        Ninguna.
+    Salidas:
+        None: Verifica que la distancia final sea exactamente el radio de colision circular.
+    Restricciones:
+        Ninguna.
+    """
+    rx, ry = 1800, 1300
+    radio_col = 85
+    r_jug = 24  # rect de 48x48
+    min_dist_esperada = radio_col + r_jug  # 109 px
+
+    # Jugador intentando penetrar el nucleo en diagonal exacta (45 grados)
+    jugador = pygame.Rect(rx + 50, ry - 50, 48, 48)
+    nuevo = mover_con_colisiones(
+        jugador,
+        0,
+        0,
+        [],
+        circulo_reactor=(rx, ry, radio_col),
+    )
+
+    dist_resultante = math.hypot(nuevo.centerx - rx, nuevo.centery - ry)
+    assert abs(dist_resultante - min_dist_esperada) < 1.0
+
+
+def test_avatar_select_elimina_carga_disco():
+    """
+    Descripcion:
+        Verifica que AvatarSelectView no contenga metodos muertos de carga desde disco
+        y se restrinja exclusivamente a los trajes Hazmat oficiales.
+    Entradas:
+        Ninguna.
+    Salidas:
+        None: Verifica la ausencia de metodos de disco.
+    Restricciones:
+        Ninguna.
+    """
+    from Cliente.Interfaz.avatar_select_view import AvatarSelectView
+    assert not hasattr(AvatarSelectView, "_cargar_imagen_disco")
+    assert not hasattr(AvatarSelectView, "_quitar_imagen_disco")

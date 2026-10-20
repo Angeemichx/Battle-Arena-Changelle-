@@ -45,8 +45,10 @@ class JugarView(ctk.CTk):
         self.resizable(True, True)
         ctk.set_appearance_mode("dark")
 
+        base_ui = Path(__file__).resolve().parent.parent / "Recursos" / "Sprites" / "UI"
+
         # Fondo ambiental de estacion nuclear
-        ruta_bg = Path(__file__).resolve().parent.parent / "Recursos" / "Sprites" / "UI" / "bg_nuclear_station.png"
+        ruta_bg = base_ui / "bg_nuclear_station.png"
         if ruta_bg.exists():
             try:
                 pil_bg = Image.open(str(ruta_bg))
@@ -55,6 +57,20 @@ class JugarView(ctk.CTk):
                 self.lbl_bg.place(x=0, y=0, relwidth=1, relheight=1)
             except Exception:
                 pass
+
+        def _cargar_img(nombre, size):
+            p = base_ui / nombre
+            if p.exists():
+                try:
+                    pil_i = Image.open(str(p))
+                    return ctk.CTkImage(light_image=pil_i, dark_image=pil_i, size=size)
+                except Exception:
+                    pass
+            return None
+
+        self.ic_bar = _cargar_img("hazard_stripe_bar.png", (360, 8))
+        self.ic_host = _cargar_img("icon_terminal_host.png", (28, 28))
+        self.ic_join = _cargar_img("icon_terminal_join.png", (28, 28))
 
         # Barra superior con boton Regresar
         top_bar = ctk.CTkFrame(self, fg_color="transparent")
@@ -79,56 +95,83 @@ class JugarView(ctk.CTk):
             text="SELECCION DE PARTIDA",
             font=("Segoe UI", 18, "bold"),
             text_color=COLOR_TEXTO,
-        ).pack(pady=(20, 15))
+        ).pack(pady=(16, 6))
 
-        # SECCION A: CREAR SALA (HOST)
-        box_host = ctk.CTkFrame(frame, fg_color="#181A20", corner_radius=8)
-        box_host.pack(padx=20, pady=8, fill="x")
+        if self.ic_bar:
+            ctk.CTkLabel(frame, image=self.ic_bar, text="").pack(pady=(0, 10))
+
+        # SECCION A: CREAR SALA (HOST) CON BORDE TEMATICO Y SPRITES
+        box_host = ctk.CTkFrame(
+            frame,
+            fg_color="#181C26",
+            border_width=2,
+            border_color="#2A9D8F",
+            corner_radius=10,
+        )
+        box_host.pack(padx=20, pady=6, fill="x")
+
+        header_host = ctk.CTkFrame(box_host, fg_color="transparent")
+        header_host.pack(pady=(8, 2))
+
+        if self.ic_host:
+            ctk.CTkLabel(header_host, image=self.ic_host, text="").pack(side="left", padx=6)
 
         ctk.CTkLabel(
-            box_host,
+            header_host,
             text="CREAR SALA (ANFITRION)",
             font=("Segoe UI", 12, "bold"),
-            text_color=COLOR_EXITO,
-        ).pack(pady=(10, 2))
+            text_color="#2A9D8F",
+        ).pack(side="left")
 
         ip_detectada = self.controller.ip_servidor
         ctk.CTkLabel(
             box_host,
-            text=f"Direccion IP asignada: {ip_detectada} : {self.controller.puerto_servidor}",
-            font=("Segoe UI", 11),
+            text=f"Direccion IP de transmision: {ip_detectada} : {self.controller.puerto_servidor}",
+            font=("Segoe UI", 11, "bold"),
             text_color="#E9C46A",
         ).pack(pady=2)
 
         ctk.CTkButton(
             box_host,
-            text="CREAR SALA",
+            text="CREAR SALA LOCAL",
             width=240,
             height=36,
             font=("Segoe UI", 12, "bold"),
             fg_color=COLOR_EXITO,
             hover_color=COLOR_EXITO_HOVER,
             command=self._crear_sala,
-        ).pack(pady=(6, 12))
+        ).pack(pady=(6, 10))
 
-        # SECCION B: UNIRSE A SALA EXISTENTE
-        box_join = ctk.CTkFrame(frame, fg_color="#181A20", corner_radius=8)
+        # SECCION B: UNIRSE A SALA EXISTENTE CON BORDE TEMATICO Y SPRITES
+        box_join = ctk.CTkFrame(
+            frame,
+            fg_color="#181C26",
+            border_width=2,
+            border_color="#4A90E2",
+            corner_radius=10,
+        )
         box_join.pack(padx=20, pady=8, fill="x")
 
+        header_join = ctk.CTkFrame(box_join, fg_color="transparent")
+        header_join.pack(pady=(8, 2))
+
+        if self.ic_join:
+            ctk.CTkLabel(header_join, image=self.ic_join, text="").pack(side="left", padx=6)
+
         ctk.CTkLabel(
-            box_join,
-            text="UNIRSE A PARTIDA",
+            header_join,
+            text="UNIRSE A PARTIDA (CLIENTE)",
             font=("Segoe UI", 12, "bold"),
             text_color="#4A90E2",
-        ).pack(pady=(10, 2))
+        ).pack(side="left")
 
         self.txt_ip = ctk.CTkEntry(box_join, placeholder_text="IP del Host", width=240, height=34)
         self.txt_ip.insert(0, "127.0.0.1")
-        self.txt_ip.pack(pady=4)
+        self.txt_ip.pack(pady=3)
 
         self.txt_puerto = ctk.CTkEntry(box_join, placeholder_text="Puerto", width=240, height=34)
         self.txt_puerto.insert(0, str(self.controller.puerto_servidor))
-        self.txt_puerto.pack(pady=4)
+        self.txt_puerto.pack(pady=3)
 
         ctk.CTkButton(
             box_join,
@@ -139,7 +182,10 @@ class JugarView(ctk.CTk):
             fg_color=COLOR_PRIMARIO,
             hover_color=COLOR_PRIMARIO_HOVER,
             command=self._unirse_sala,
-        ).pack(pady=(6, 12))
+        ).pack(pady=(6, 10))
+
+        if self.ic_bar:
+            ctk.CTkLabel(frame, image=self.ic_bar, text="").pack(pady=(6, 8))
 
     def _crear_sala(self) -> None:
         """

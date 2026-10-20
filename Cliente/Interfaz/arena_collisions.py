@@ -13,7 +13,7 @@ WORLD_HEIGHT = 2600
 
 # Posicion y radios del Reactor Central en el centro exacto del mapa
 REACTOR_CENTER = (1800, 1300)
-REACTOR_COLLISION_RADIUS = 110
+REACTOR_COLLISION_RADIUS = 85
 REACTOR_EXTRACTION_RADIUS = 210
 
 # 4 Plataformas de inicio (Spawn Pads) ubicadas en los puntos cardinales (Norte, Sur, Oeste, Este)
@@ -194,23 +194,25 @@ def mover_con_colisiones(
     dy: float,
     obstaculos: list[pygame.Rect],
     limites: pygame.Rect | None = None,
+    circulo_reactor: tuple[int, int, int] | None = None,
 ) -> pygame.Rect:
     """
     Descripcion:
         Aplica el desplazamiento (dx, dy) a un rectangulo evaluando de forma independiente
-        el eje X y el eje Y contra una lista de obstaculos para permitir deslizamiento suave
-        sobre las paredes sin atascos.
+        el eje X y el eje Y contra muros rectangulares, y resolviendo de forma radial
+        la colision circular contra el Reactor para permitir un deslizamiento suave y continuo
+        sin atascos en esquinas cuadradas ficticias.
     Entradas:
         rect (pygame.Rect): Rectangulo original del jugador antes del movimiento.
         dx (float): Desplazamiento horizontal solicitado en pixeles.
         dy (float): Desplazamiento vertical solicitado en pixeles.
         obstaculos (list[pygame.Rect]): Lista de muros y objetos solidos con los que colisionar.
         limites (pygame.Rect | None): Rectangulo opcional que confina al jugador dentro del mapa.
+        circulo_reactor (tuple[int, int, int] | None): Tupla opcional (cx, cy, radio) para colision circular.
     Salidas:
         pygame.Rect: Nuevo rectangulo con la posicion final corregida tras resolver colisiones.
     Restricciones:
-        El rectangulo de entrada no debe iniciar solapado dentro de un obstaculo en el eje
-        perpendicular al movimiento.
+        Ninguna.
     """
     nuevo = rect.copy()
 
@@ -235,6 +237,24 @@ def mover_con_colisiones(
                     nuevo.bottom = obs.top
                 elif step_y < 0:
                     nuevo.top = obs.bottom
+
+    # Resolucion fisica circular continua para el Reactor Central (elimina huecos y esquinas invisibles)
+    if circulo_reactor is not None:
+        rx, ry, radio_col = circulo_reactor
+        px, py = nuevo.centerx, nuevo.centery
+        diff_x = px - rx
+        diff_y = py - ry
+        dist = math.hypot(diff_x, diff_y)
+        # Radio de colision efectiva (radio del reactor + radio de la hitbox del personaje)
+        min_dist = radio_col + (rect.width / 2.0)
+        if dist < min_dist:
+            if dist > 0.001:
+                nx = diff_x / dist
+                ny = diff_y / dist
+            else:
+                nx, ny = 1.0, 0.0
+            nuevo.centerx = int(round(rx + nx * min_dist))
+            nuevo.centery = int(round(ry + ny * min_dist))
 
     if limites is not None:
         nuevo.clamp_ip(limites)

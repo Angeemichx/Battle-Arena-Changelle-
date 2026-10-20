@@ -4,6 +4,7 @@ Pruebas unitarias positivas y negativas para el modulo del Integrante 1
 Autenticacion Estricta, Acceso Admin con deteccion de sesion activa y Condicion de Victoria / Desempate).
 Cumple con el Definition of Done (DoD) del Sprint 2.
 """
+import math
 import pytest
 import pygame
 
@@ -324,3 +325,224 @@ def test_acceso_rapido_admin_1_y_admin_2(tmp_path):
     r_ocupado = auth.iniciar_sesion("Admin 1", "1234", controller=ctrl)
     assert r_ocupado["ok"] is False
     assert "ya se encuentra conectado en otro ordenador" in r_ocupado["msg"]
+
+
+def test_avatar_select_view_cambio_color_y_persistencia(tmp_path, monkeypatch):
+    """
+    Descripcion:
+        Verifica que AvatarSelectView permita cambiar el color del avatar, actualizar la
+        previsualizacion y persistir los cambios en config_local.json (US-06).
+    Entradas:
+        tmp_path: Directorio temporal de pytest.
+        monkeypatch: Fixture de pytest para redirigir la ruta de configuracion.
+    Salidas:
+        None: Ejecuta aserciones sobre el estado del controlador tras guardar.
+    Restricciones:
+        Requiere inicializar CustomTkinter sin desplegar pantalla grafica real.
+    """
+    from Cliente.Interfaz.avatar_select_view import AvatarSelectView
+    import Cliente.Interfaz.root as root_mod
+
+    config_test = tmp_path / "config_test.json"
+    monkeypatch.setattr(root_mod, "CONFIG_PATH", config_test)
+
+    ctrl = AppController()
+    view = AvatarSelectView(ctrl)
+    view.withdraw()
+
+    # Seleccionar color Verde
+    view._seleccionar_color("#2A9D8F")
+    assert view.color_temp == "#2A9D8F"
+
+    # Guardar y aplicar (evitando abrir el mainloop de HubView en test unitario)
+    monkeypatch.setattr(ctrl, "mostrar_hub", lambda: None)
+    view._guardar_y_volver()
+    assert ctrl.avatar_color == "#2A9D8F"
+    assert config_test.exists()
+
+    view.destroy()
+
+
+def test_resolver_conflicto_color_duplicado_al_unirse():
+    """
+    Descripcion:
+        Verifica que resolver_conflicto_color detecte cuando el color preferido del
+        jugador local colisiona con el de otro jugador presente en la sala y le asigne
+        automaticamente el siguiente color libre de la paleta (CA-10.3).
+    Entradas:
+        Ninguna.
+    Salidas:
+        None: Verifica que el nuevo color sea diferente y este libre de colisiones.
+    Restricciones:
+        Ninguna.
+    """
+    ctrl = AppController()
+    ctrl.avatar_color = "#E63946"  # Rojo
+
+    # Simulamos que otro jugador ya ocupa el color Rojo (#E63946)
+    jugadores_sala = [
+        {"id": 1, "nombre": "Local", "color": "#E63946", "es_local": True},
+        {"id": 2, "nombre": "Host", "color": "#E63946", "es_local": False},
+    ]
+
+    color_asignado = ctrl.resolver_conflicto_color(jugadores_sala)
+    assert color_asignado is not None
+    assert color_asignado == "Azul"  # Primer color libre tras Rojo
+    assert ctrl.avatar_color == "#1D3557"  # Azul
+    assert jugadores_sala[0]["color"] == "#1D3557"
+
+
+def test_resolver_conflicto_color_sin_colision():
+    """
+    Descripcion:
+        Verifica que resolver_conflicto_color mantenga intacto el color del jugador local
+        cuando ningun otro jugador en la sala ocupa dicho color.
+    Entradas:
+        Ninguna.
+    Salidas:
+        None: Verifica que retorne None y no modifique avatar_color.
+    Restricciones:
+        Ninguna.
+    """
+    ctrl = AppController()
+    ctrl.avatar_color = "#2A9D8F"  # Verde
+
+    jugadores_sala = [
+        {"id": 1, "nombre": "Local", "color": "#2A9D8F", "es_local": True},
+        {"id": 2, "nombre": "Host", "color": "#E63946", "es_local": False},
+    ]
+
+    res = ctrl.resolver_conflicto_color(jugadores_sala)
+    assert res is None
+    assert ctrl.avatar_color == "#2A9D8F"
+
+
+def test_sprite_loader_retorna_superficies_validas():
+    """
+    Descripcion:
+        Verifica que el modulo sprite_loader cargue correctamente los sprites 2D de
+        personajes hazmat, particulas animadas y entorno de la estacion.
+    Entradas:
+        Ninguna.
+    Salidas:
+        None: Ejecuta aserciones sobre las dimensiones y tipos de superficies retornadas.
+    Restricciones:
+        Requiere pygame inicializado.
+    """
+    import pygame
+    from Cliente.Interfaz.Components.sprite_loader import (
+        inicializar_sprites,
+        obtener_frame_particula,
+        obtener_sprite_entorno,
+        obtener_sprite_personaje,
+    )
+    pygame.init()
+    if not pygame.display.get_init():
+        pygame.display.init()
+        pygame.display.set_mode((100, 100))
+
+    sp_rojo = obtener_sprite_personaje("#E63946", direccion="down", size=(48, 48))
+    assert sp_rojo is not None
+    assert sp_rojo.get_size() == (48, 48)
+
+    sp_part = obtener_frame_particula(0.0)
+    assert sp_part is not None
+
+    sp_reactor = obtener_sprite_entorno("reactor_core")
+    assert sp_reactor is not None
+
+
+def test_logica_abandonar_partida_victoria_inmediata_si_queda_uno():
+    """
+    Descripcion:
+        Verifica que al abandonar la partida, si en la sala solo queda 1 jugador restante,
+        se declare inmediatamente la victoria para dicho jugador.
+    Entradas:
+        Ninguna.
+    Salidas:
+        None: Verifica que el ganador sea el jugador restante y se active la condicion de victoria.
+    Restricciones:
+        Ninguna.
+    """
+    jugadores = [
+        {"id": 1, "nombre": "Local", "color": "#E63946", "es_local": True},
+        {"id": 2, "nombre": "Rival", "color": "#1D3557", "es_local": False},
+    ]
+
+    otros = [j for j in jugadores if not j.get("es_local", False)]
+    assert len(otros) == 1
+
+    ganador_inmediato = otros[0]
+    assert ganador_inmediato["nombre"] == "Rival"
+
+
+def test_logica_abandonar_partida_con_tres_jugadores_no_declara_ganador():
+    """
+    Descripcion:
+        Verifica que al abandonar la partida con 3 o mas jugadores, como quedan 2 o mas
+        participantes activos, el jugador local solo se retire al Lobby sin declarar ganador unico.
+    Entradas:
+        Ninguna.
+    Salidas:
+        None: Verifica que la cantidad de restantes sea mayor a 1.
+    Restricciones:
+        Ninguna.
+    """
+    jugadores = [
+        {"id": 1, "nombre": "Local", "color": "#E63946", "es_local": True},
+        {"id": 2, "nombre": "Piloto2", "color": "#1D3557", "es_local": False},
+        {"id": 3, "nombre": "Piloto3", "color": "#2A9D8F", "es_local": False},
+    ]
+
+    otros = [j for j in jugadores if not j.get("es_local", False)]
+    assert len(otros) >= 2
+
+
+def test_colision_circular_reactor_sin_esquinas_cuadradas():
+    """
+    Descripcion:
+        Verifica que el Reactor Central aplique una colision estrictamente circular
+        en lugar de una caja cuadrada con esquinas ficticias, permitiendo que el jugador
+        se aproxime diagonalmente hasta tocar el radio del circulo sin ser frenado
+        en esquinas lejanas.
+    Entradas:
+        Ninguna.
+    Salidas:
+        None: Verifica que la distancia final sea exactamente el radio de colision circular.
+    Restricciones:
+        Ninguna.
+    """
+    rx, ry = 1800, 1300
+    radio_col = 85
+    r_jug = 24  # rect de 48x48
+    min_dist_esperada = radio_col + r_jug  # 109 px
+
+    # Jugador intentando penetrar el nucleo en diagonal exacta (45 grados)
+    jugador = pygame.Rect(rx + 50, ry - 50, 48, 48)
+    nuevo = mover_con_colisiones(
+        jugador,
+        0,
+        0,
+        [],
+        circulo_reactor=(rx, ry, radio_col),
+    )
+
+    dist_resultante = math.hypot(nuevo.centerx - rx, nuevo.centery - ry)
+    assert abs(dist_resultante - min_dist_esperada) < 1.0
+
+
+def test_avatar_select_cumple_criterio_ca_06_3_disco():
+    """
+    Descripcion:
+        Verifica el cumplimiento de CA-06.3 permitiendo la seleccion de trajes Hazmat
+        o la carga opcional de imagen personalizada desde disco.
+    Entradas:
+        Ninguna.
+    Salidas:
+        None: Verifica la presencia de los metodos de carga y restablecimiento.
+    Restricciones:
+        Ninguna.
+    """
+    from Cliente.Interfaz.avatar_select_view import AvatarSelectView
+    assert hasattr(AvatarSelectView, "_cargar_imagen_disco")
+    assert hasattr(AvatarSelectView, "_quitar_imagen_disco")

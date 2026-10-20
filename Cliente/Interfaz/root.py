@@ -227,6 +227,42 @@ class AppController:
                 return False
         return True
 
+    def resolver_conflicto_color(self, jugadores: list[dict]) -> str | None:
+        """
+        Descripcion:
+            Detecta si el color actual del avatar del jugador local colisiona con el de
+            algun otro jugador en la sala (CA-10.3). En caso de conflicto, reasigna
+            automaticamente al jugador local el primer color disponible de COLORES_AVATAR.
+        Entradas:
+            jugadores (list[dict]): Lista de diccionarios de jugadores en la sala.
+        Salidas:
+            str | None: Nombre del nuevo color asignado si hubo conflicto, o None si no hubo colision.
+        Restricciones:
+            Modifica self.avatar_color si se detecta colision con un jugador remoto.
+        """
+        colores_otros = {
+            str(j.get("color", "")).strip().upper()
+            for j in jugadores
+            if not j.get("es_local", False)
+        }
+        color_local_actual = str(self.avatar_color).strip().upper()
+
+        if color_local_actual not in colores_otros:
+            return None  # No hay conflicto, el color actual es unico
+
+        # Conflicto detectado: reasignar al siguiente color libre de la paleta obligatoria
+        for nombre, codigo in COLORES_AVATAR.items():
+            if codigo.upper() not in colores_otros:
+                self.avatar_color = codigo
+                for j in jugadores:
+                    if j.get("es_local", False):
+                        j["color"] = codigo
+                        j["color_nombre"] = nombre
+                        break
+                return nombre
+
+        return None
+
     def cargar_config_local(self) -> None:
         """
         Descripcion:
@@ -565,6 +601,22 @@ class AppController:
         self._cerrar_ventana_actual()
         from Cliente.Interfaz.jugar_view import JugarView
         self.ventana_actual = JugarView(self)
+        self.ventana_actual.mainloop()
+
+    def mostrar_avatar_select(self) -> None:
+        """
+        Descripcion:
+            Cierra la vista actual y abre el selector de Avatar en CustomTkinter (AvatarSelectView - US-06).
+        Entradas:
+            Ninguna.
+        Salidas:
+            None: Inicia el mainloop de AvatarSelectView.
+        Restricciones:
+            Ninguna.
+        """
+        self._cerrar_ventana_actual()
+        from Cliente.Interfaz.avatar_select_view import AvatarSelectView
+        self.ventana_actual = AvatarSelectView(self)
         self.ventana_actual.mainloop()
 
     def mostrar_perfil(self) -> None:

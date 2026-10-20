@@ -28,6 +28,10 @@ from Cliente.Interfaz.arena_collisions import (
 )
 from Cliente.Interfaz.Components.hud import dibujar_hud_lobby, hex_to_rgb
 from Cliente.Interfaz.Components.ui_helpers import COLORES_AVATAR
+from Cliente.Interfaz.Components.sprite_loader import (
+    obtener_sprite_entorno,
+    obtener_sprite_personaje,
+)
 
 TIPOS_MAPA = [
     "Estacion Estandar",
@@ -130,51 +134,16 @@ def _generar_superficie_minimapa(tipo_mapa: str) -> pygame.Surface:
     return surf
 
 
-def _cargar_imagen_avatar_disco(ruta: str | None) -> pygame.Surface | None:
-    """
-    Descripcion:
-        Carga desde el sistema de archivos una imagen personalizada de avatar (.png/.jpg/.bmp)
-        y la convierte a una superficie con canal alfa lista para mostrarse en Pygame.
-    Entradas:
-        ruta (str | None): Ruta absoluta en disco hacia el archivo de imagen o None.
-    Salidas:
-        pygame.Surface | None: Superficie cargada o None si la ruta no existe o el archivo es invalido.
-    Restricciones:
-        Requiere que pygame.display tenga un modo de video activo para ejecutar convert_alpha().
-    """
+def _safe_load_avatar(ruta: str | None) -> pygame.Surface | None:
+    """Carga de forma segura una imagen de avatar personalizada desde disco (CA-06.3)."""
     if not ruta or not os.path.exists(ruta):
         return None
     try:
-        return pygame.image.load(ruta).convert_alpha()
+        surf = pygame.image.load(ruta)
+        if pygame.display.get_init() and pygame.display.get_surface() is not None:
+            return surf.convert_alpha()
+        return surf
     except Exception:
-        return None
-
-
-def _seleccionar_archivo_imagen() -> str | None:
-    """
-    Descripcion:
-        Abre un cuadro de dialogo nativo del sistema operativo para que el jugador elija
-        una imagen desde su ordenador para usarla como apariencia del avatar (CA-06.3).
-    Entradas:
-        Ninguna.
-    Salidas:
-        str | None: Ruta absoluta del archivo seleccionado o None si el usuario cancelo.
-    Restricciones:
-        Solo permite archivos con extension .png, .jpg, .jpeg o .bmp.
-    """
-    try:
-        from tkinter import Tk, filedialog
-        tk_root = Tk()
-        tk_root.withdraw()
-        tk_root.attributes("-topmost", True)
-        ruta = filedialog.askopenfilename(
-            title="Seleccionar Imagen de Avatar",
-            filetypes=[("Imagenes", "*.png;*.jpg;*.jpeg;*.bmp")],
-        )
-        tk_root.destroy()
-        return ruta if ruta else None
-    except Exception as e:
-        print(f"[AVATAR] Error al abrir selector de archivo: {e}")
         return None
 
 
@@ -232,6 +201,7 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
             "rect": pygame.Rect(0, 0, 48, 48),
             "puntos": 0,
             "extrayendo": False,
+            "direccion": "down",
         }
     ]
 
@@ -247,7 +217,7 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
         jugadores[0]["pos_x"] = None
         jugadores[0]["pos_y"] = None
 
-    avatar_img_surface = _cargar_imagen_avatar_disco(controller.avatar_imagen)
+    avatar_img_surface = _safe_load_avatar(getattr(controller, "avatar_imagen", None))
     minimapa_base = _generar_superficie_minimapa(controller.mapa_seleccionado)
 
     # Estado del modal y alertas notorias
@@ -323,6 +293,16 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                             "puntos": datos_r.get("puntaje", 0),
                             "extrayendo": False,
                         })
+
+        # Resolucion automatica de duplicados de color al unirse (CA-10.3)
+        if hasattr(controller, "resolver_conflicto_color"):
+            color_resuelto = controller.resolver_conflicto_color(jugadores)
+            if color_resuelto:
+                alerta_rechazo_lobby = (
+                    f"COLOR REASIGNADO: Tu color original estaba en uso. "
+                    f"Se te asigno: {color_resuelto}."
+                )
+                alerta_rechazo_expira = ahora + 4.5
 
         hitbox_size = max(34, int(48 * min(sx, sy)))
         for jug in jugadores:
@@ -499,39 +479,43 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
         font_reg = pygame.font.SysFont("Segoe UI", max(11, int(13 * sy)))
         font_small = pygame.font.SysFont("Segoe UI", max(10, int(12 * sy)))
 
-        # 1. Izquierda: Zona Caminable de Salida (Volver al Menu Principal)
-        color_sal = (184, 46, 56) if en_zona_salida else (68, 34, 42)
-        pygame.draw.rect(screen, color_sal, zona_salida, border_radius=8)
-        pygame.draw.rect(screen, (230, 95, 105), zona_salida, 2, border_radius=8)
-        lbl_sal1 = font_small.render("SALIR AL MENU", True, (255, 255, 255))
-        lbl_sal2 = font_small.render("[Boton Accion]", True, (240, 195, 200))
-        screen.blit(lbl_sal1, (zona_salida.centerx - lbl_sal1.get_width() // 2, zona_salida.centery - lbl_sal1.get_height()))
-        screen.blit(lbl_sal2, (zona_salida.centerx - lbl_sal2.get_width() // 2, zona_salida.centery + 2))
-
-        # 2. Derecha: Zona Caminable de Despegue (Iniciar Partida - Bloqueada si < 2 jugadores)
-        if puede_iniciar:
-            color_pad = (42, 157, 143) if en_zona_despegue else (34, 58, 62)
-            borde_pad = (90, 210, 190)
-            txt_pad1 = "INICIAR PARTIDA"
-            txt_pad2 = "[Boton Accion]"
+        # 1. Izquierda: Zona Caminable de Salida mediante Sprite
+        sp_salida = obtener_sprite_entorno("sign_salida", (zona_salida.width, zona_salida.height))
+        if sp_salida:
+            screen.blit(sp_salida, zona_salida)
         else:
-            color_pad = (120, 40, 45) if en_zona_despegue else (65, 38, 42)
-            borde_pad = (230, 57, 70)
-            txt_pad1 = "BLOQUEADO"
-            txt_pad2 = "(Min. 2 Jugadores)"
+            color_sal = (184, 46, 56) if en_zona_salida else (68, 34, 42)
+            pygame.draw.rect(screen, color_sal, zona_salida, border_radius=8)
+            pygame.draw.rect(screen, (230, 95, 105), zona_salida, 2, border_radius=8)
+        if en_zona_salida:
+            pygame.draw.rect(screen, (255, 255, 255), zona_salida, 2, border_radius=8)
 
-        pygame.draw.rect(screen, color_pad, zona_despegue, border_radius=8)
-        pygame.draw.rect(screen, borde_pad, zona_despegue, 2, border_radius=8)
-        lbl_pad1 = font_small.render(txt_pad1, True, (255, 255, 255))
-        lbl_pad2 = font_small.render(txt_pad2, True, (245, 210, 210))
-        screen.blit(lbl_pad1, (zona_despegue.centerx - lbl_pad1.get_width() // 2, zona_despegue.centery - lbl_pad1.get_height()))
-        screen.blit(lbl_pad2, (zona_despegue.centerx - lbl_pad2.get_width() // 2, zona_despegue.centery + 2))
+        # 2. Derecha: Zona Caminable de Despegue mediante Sprite
+        sp_despegue = obtener_sprite_entorno("sign_despegue", (zona_despegue.width, zona_despegue.height))
+        if sp_despegue:
+            screen.blit(sp_despegue, zona_despegue)
+        else:
+            color_pad = (42, 157, 143) if en_zona_despegue else (34, 58, 62)
+            pygame.draw.rect(screen, color_pad, zona_despegue, border_radius=8)
+        if en_zona_despegue:
+            borde_act = (90, 255, 200) if puede_iniciar else (255, 80, 80)
+            pygame.draw.rect(screen, borde_act, zona_despegue, 2, border_radius=8)
 
-        # 3. Centro: Mesa de Comando
-        color_zona = (42, 157, 143) if cerca_de_mesa else (50, 60, 80)
-        pygame.draw.rect(screen, color_zona, zona_interaccion, 2, border_radius=10)
-        pygame.draw.rect(screen, (45, 55, 78), mesa_rect, border_radius=8)
-        pygame.draw.rect(screen, (100, 140, 200), mesa_rect, 2, border_radius=8)
+        # 3. Centro: Mesa de Comando mediante Sprite
+        sp_mesa = obtener_sprite_entorno("mesa_comando", (mesa_rect.width, mesa_rect.height))
+        if sp_mesa:
+            screen.blit(sp_mesa, mesa_rect)
+        else:
+            pygame.draw.rect(screen, (45, 55, 78), mesa_rect, border_radius=8)
+            pygame.draw.rect(screen, (100, 140, 200), mesa_rect, 2, border_radius=8)
+
+        # Cartel holografico sobre la mesa
+        sp_sign_mesa = obtener_sprite_entorno("sign_mesa_comando", (int(170 * sx), int(42 * sy)))
+        if sp_sign_mesa:
+            screen.blit(sp_sign_mesa, (mesa_rect.centerx - sp_sign_mesa.get_width() // 2, mesa_rect.top - sp_sign_mesa.get_height() - 6))
+
+        if cerca_de_mesa:
+            pygame.draw.rect(screen, (57, 255, 20), mesa_rect, 2, border_radius=8)
 
         lbl_mesa1 = font_bold.render("MESA DE", True, (255, 255, 255))
         lbl_mesa2 = font_bold.render("COMANDO", True, (160, 200, 255))
@@ -559,18 +543,26 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
             pygame.draw.rect(screen, (233, 196, 106), aviso_bg, 1, border_radius=6)
             screen.blit(aviso_surf, (aviso_bg.x + 12, aviso_bg.y + 5))
 
-        # Dibujar Jugadores en la Sala Caminable
+        # Dibujar Jugadores en la Sala Caminable con Sprites Hazmat
         for jug in jugadores:
             j_rect = jug["rect"]
-            if jug["es_local"] and avatar_img_surface is not None:
-                img_scaled = pygame.transform.smoothscale(avatar_img_surface, (j_rect.width, j_rect.height))
-                screen.blit(img_scaled, j_rect)
-            else:
-                pygame.draw.rect(screen, hex_to_rgb(jug["color"]), j_rect, border_radius=6)
+            c_hex = jug.get("color", "#E63946")
+            d_jug = jug.get("direccion", "down")
 
-            grosor_borde_j = 3 if jug["es_local"] else 1
-            color_borde_j = (255, 255, 255) if jug["es_local"] else (30, 30, 30)
-            pygame.draw.rect(screen, color_borde_j, j_rect, grosor_borde_j, border_radius=6)
+            if jug["es_local"] and avatar_img_surface is not None:
+                sp_jug = pygame.transform.smoothscale(avatar_img_surface, (j_rect.width, j_rect.height))
+            else:
+                sp_jug = obtener_sprite_personaje(
+                    color_hex=c_hex,
+                    direccion=d_jug,
+                    extrayendo=False,
+                    size=(j_rect.width, j_rect.height),
+                )
+
+            if sp_jug:
+                screen.blit(sp_jug, j_rect)
+            else:
+                pygame.draw.rect(screen, hex_to_rgb(c_hex), j_rect, border_radius=6)
 
             lbl_nom = font_small.render(jug["nombre"], True, (255, 255, 255))
             screen.blit(lbl_nom, (j_rect.centerx - lbl_nom.get_width() // 2, j_rect.top - lbl_nom.get_height() - 4))
@@ -737,32 +729,6 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                     screen.blit(s_est, (c_rect.centerx - s_est.get_width() // 2, c_rect.bottom - int(26 * sy)))
 
                     rects_modal[f"color_{nombre_c}"] = (c_rect, nombre_c, hex_c, ocupado_por, idx)
-
-                btn_disco = pygame.Rect(
-                    modal_rect.x + int(28 * sx),
-                    cy_box + btn_c_h + int(28 * sy),
-                    int(280 * sx),
-                    int(42 * sy),
-                )
-                pygame.draw.rect(screen, (31, 83, 141), btn_disco, border_radius=6)
-                lbl_d = font_bold.render("Cargar Imagen desde Disco", True, (255, 255, 255))
-                screen.blit(lbl_d, (btn_disco.centerx - lbl_d.get_width() // 2, btn_disco.centery - lbl_d.get_height() // 2))
-                rects_modal["btn_disco"] = btn_disco
-
-                if controller.avatar_imagen:
-                    btn_limpiar_img = pygame.Rect(
-                        btn_disco.right + int(16 * sx),
-                        btn_disco.y,
-                        int(220 * sx),
-                        int(42 * sy),
-                    )
-                    pygame.draw.rect(screen, (70, 50, 60), btn_limpiar_img, border_radius=6)
-                    lbl_li = font_small.render("Usar Solo Hitbox de Color", True, (255, 255, 255))
-                    screen.blit(
-                        lbl_li,
-                        (btn_limpiar_img.centerx - lbl_li.get_width() // 2, btn_limpiar_img.centery - lbl_li.get_height() // 2),
-                    )
-                    rects_modal["btn_limpiar_img"] = btn_limpiar_img
 
             elif pestana_modal == "mapas":
                 if controller.es_creador:
@@ -1028,22 +994,6 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                                         controller.guardar_config_local()
                                         mensaje_modal = f"Color actualizado a {nom_c}."
 
-                        if rects_modal.get("btn_disco") and rects_modal["btn_disco"].collidepoint(pos):
-                            nueva_ruta = _seleccionar_archivo_imagen()
-                            if nueva_ruta:
-                                img_cargada = _cargar_imagen_avatar_disco(nueva_ruta)
-                                if img_cargada is not None:
-                                    controller.avatar_imagen = nueva_ruta
-                                    avatar_img_surface = img_cargada
-                                    controller.guardar_config_local()
-                                    mensaje_modal = "Imagen de avatar cargada correctamente."
-
-                        if rects_modal.get("btn_limpiar_img") and rects_modal["btn_limpiar_img"].collidepoint(pos):
-                            controller.avatar_imagen = None
-                            avatar_img_surface = None
-                            controller.guardar_config_local()
-                            mensaje_modal = "Usando hitbox de color solido."
-
                     elif pestana_modal == "mapas":
                         for idx in range(len(TIPOS_MAPA)):
                             info_m = rects_modal.get(f"mapa_{idx}")
@@ -1112,6 +1062,10 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
         if not modal_abierto and not mapa_ampliado:
             dx_unit, dy_unit = direction_from(comandos_actuales)
             if dx_unit != 0 or dy_unit != 0:
+                if abs(dx_unit) >= abs(dy_unit):
+                    jugador_local["direccion"] = "right" if dx_unit > 0 else "left"
+                else:
+                    jugador_local["direccion"] = "down" if dy_unit > 0 else "up" 
                 vel_x = dx_unit * velocidad_base * sx
                 vel_y = dy_unit * velocidad_base * sy
                 nuevo_rect = mover_con_colisiones(

@@ -3,6 +3,8 @@ Ventana de Perfil de Jugador.
 Muestra datos basicos y aviso de modulo en mantenimiento.
 """
 import customtkinter as ctk
+from pathlib import Path
+from PIL import Image
 from Cliente.Interfaz.Components.ui_helpers import (
     COLOR_PANEL, COLOR_SECUNDARIO, COLOR_SECUNDARIO_HOVER, COLOR_TEXTO,
     adaptar_ventana_ctk,
@@ -40,6 +42,32 @@ class PerfilView(ctk.CTk):
         self.resizable(True, True)
         ctk.set_appearance_mode("dark")
 
+        base_ui = Path(__file__).resolve().parent.parent / "Recursos" / "Sprites" / "UI"
+
+        # Fondo ambiental de estacion nuclear
+        ruta_bg = base_ui / "bg_nuclear_station.png"
+        if ruta_bg.exists():
+            try:
+                pil_bg = Image.open(str(ruta_bg))
+                self.bg_img = ctk.CTkImage(light_image=pil_bg, dark_image=pil_bg, size=(900, 750))
+                self.lbl_bg = ctk.CTkLabel(self, image=self.bg_img, text="")
+                self.lbl_bg.place(x=0, y=0, relwidth=1, relheight=1)
+            except Exception:
+                pass
+
+        def _cargar_img(nombre, size):
+            p = base_ui / nombre
+            if p.exists():
+                try:
+                    pil_i = Image.open(str(p))
+                    return ctk.CTkImage(light_image=pil_i, dark_image=pil_i, size=size)
+                except Exception:
+                    pass
+            return None
+
+        self.ic_maint = _cargar_img("icon_maintenance.png", (56, 56))
+        self.ic_bar = _cargar_img("hazard_stripe_bar.png", (340, 8))
+
         # Barra superior con boton Regresar
         top_bar = ctk.CTkFrame(self, fg_color="transparent")
         top_bar.pack(fill="x", padx=25, pady=(15, 0))
@@ -54,7 +82,7 @@ class PerfilView(ctk.CTk):
             command=self.controller.mostrar_hub,
         ).pack(side="left")
 
-        frame = ctk.CTkFrame(self, fg_color=COLOR_PANEL, corner_radius=12)
+        frame = ctk.CTkFrame(self, fg_color=("#141822", "#141822"), border_width=2, border_color="#2A354D", corner_radius=12)
         frame.pack(padx=25, pady=15, fill="both", expand=True)
 
         ctk.CTkLabel(
@@ -62,40 +90,45 @@ class PerfilView(ctk.CTk):
             text="PERFIL DE JUGADOR",
             font=("Segoe UI", 18, "bold"),
             text_color=COLOR_TEXTO,
-        ).pack(pady=(25, 15))
+        ).pack(pady=(20, 10))
 
-        # Tarjeta de Datos del Piloto
-        card = ctk.CTkFrame(frame, fg_color="#181A20", corner_radius=8)
-        card.pack(padx=30, pady=10, fill="x")
+        if self.ic_bar:
+            ctk.CTkLabel(frame, image=self.ic_bar, text="").pack(pady=(0, 15))
+
+        # Recuadro central de Modulo en Mantenimiento
+        maint_box = ctk.CTkFrame(
+            frame,
+            fg_color="#181C26",
+            border_width=2,
+            border_color="#E9C46A",
+            corner_radius=10,
+        )
+        maint_box.pack(padx=30, pady=10, fill="both", expand=True)
+
+        if self.ic_maint:
+            ctk.CTkLabel(maint_box, image=self.ic_maint, text="").pack(pady=(25, 10))
 
         ctk.CTkLabel(
-            card,
-            text=f"Usuario: {self.controller.usuario_actual}",
-            font=("Segoe UI", 13, "bold"),
-        ).pack(pady=(12, 4))
+            maint_box,
+            text="MODULO EN MANTENIMIENTO",
+            font=("Segoe UI", 16, "bold"),
+            text_color="#E9C46A",
+        ).pack(pady=(5, 8))
 
         ctk.CTkLabel(
-            card,
-            text="Rango: Cadete | Nivel: 1",
+            maint_box,
+            text=f"Piloto Activo: {self.controller.usuario_actual}",
+            font=("Segoe UI", 12, "bold"),
+            text_color="#39FF14",
+        ).pack(pady=(0, 10))
+
+        ctk.CTkLabel(
+            maint_box,
+            text="Las estadisticas avanzadas, historial de combates\ny expedientes de tripulacion se habilitaran tras la\nsincronizacion con el servidor central en el proximo Sprint.",
             font=("Segoe UI", 11),
             text_color="#8E9AA8",
-        ).pack(pady=(0, 12))
-
-        # Recuadro informativo de sincronizacion con el servidor
-        aviso = ctk.CTkFrame(frame, fg_color="#2D2A1F", corner_radius=8, border_width=1, border_color="#DDAA33")
-        aviso.pack(padx=30, pady=25, fill="x")
-
-        ctk.CTkLabel(
-            aviso,
-            text="MODULO EN MANTENIMIENTO",
-            font=("Segoe UI", 12, "bold"),
-            text_color="#E9C46A",
-        ).pack(pady=(12, 4))
-
-        ctk.CTkLabel(
-            aviso,
-            text="Las estadisticas detalladas y el historial de partidas\nse habilitaran al completar la sincronizacion con el servidor.",
-            font=("Segoe UI", 11),
-            text_color="#C8C8C8",
             justify="center",
-        ).pack(pady=(0, 12))
+        ).pack(padx=20, pady=(0, 25))
+
+        if self.ic_bar:
+            ctk.CTkLabel(frame, image=self.ic_bar, text="").pack(pady=(10, 15))

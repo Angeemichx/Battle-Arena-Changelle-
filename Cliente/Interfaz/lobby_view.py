@@ -134,6 +134,19 @@ def _generar_superficie_minimapa(tipo_mapa: str) -> pygame.Surface:
     return surf
 
 
+def _safe_load_avatar(ruta: str | None) -> pygame.Surface | None:
+    """Carga de forma segura una imagen de avatar personalizada desde disco (CA-06.3)."""
+    if not ruta or not os.path.exists(ruta):
+        return None
+    try:
+        surf = pygame.image.load(ruta)
+        if pygame.display.get_init() and pygame.display.get_surface() is not None:
+            return surf.convert_alpha()
+        return surf
+    except Exception:
+        return None
+
+
 def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> None:
     """
     Descripcion:
@@ -204,6 +217,7 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
         jugadores[0]["pos_x"] = None
         jugadores[0]["pos_y"] = None
 
+    avatar_img_surface = _safe_load_avatar(getattr(controller, "avatar_imagen", None))
     minimapa_base = _generar_superficie_minimapa(controller.mapa_seleccionado)
 
     # Estado del modal y alertas notorias
@@ -446,7 +460,7 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
         # =====================================================================
         screen.fill((18, 20, 27))
 
-        dibujar_hud_lobby(screen, controller, jugadores)
+        dibujar_hud_lobby(screen, controller, jugadores, avatar_img_surface)
 
         # Zona Caminable de la Nave
         pygame.draw.rect(screen, (26, 30, 40), zona_caminable, border_radius=8)
@@ -535,12 +549,15 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
             c_hex = jug.get("color", "#E63946")
             d_jug = jug.get("direccion", "down")
 
-            sp_jug = obtener_sprite_personaje(
-                color_hex=c_hex,
-                direccion=d_jug,
-                extrayendo=False,
-                size=(j_rect.width, j_rect.height),
-            )
+            if jug["es_local"] and avatar_img_surface is not None:
+                sp_jug = pygame.transform.smoothscale(avatar_img_surface, (j_rect.width, j_rect.height))
+            else:
+                sp_jug = obtener_sprite_personaje(
+                    color_hex=c_hex,
+                    direccion=d_jug,
+                    extrayendo=False,
+                    size=(j_rect.width, j_rect.height),
+                )
 
             if sp_jug:
                 screen.blit(sp_jug, j_rect)

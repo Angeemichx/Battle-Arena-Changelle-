@@ -40,6 +40,19 @@ from Cliente.Interfaz.Components.sprite_loader import (
 )
 
 
+def _safe_load_avatar(ruta: str | None) -> pygame.Surface | None:
+    """Carga de forma segura una imagen de avatar personalizada desde disco (CA-06.3)."""
+    if not ruta or not os.path.exists(ruta):
+        return None
+    try:
+        surf = pygame.image.load(ruta)
+        if pygame.display.get_init() and pygame.display.get_surface() is not None:
+            return surf.convert_alpha()
+        return surf
+    except Exception:
+        return None
+
+
 def evaluar_condicion_victoria(
     jugadores: list[dict],
     tiempo_restante: float,
@@ -187,6 +200,7 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
         colores_asignados.add(c_actual)
 
     jugador_local = jugadores[0]
+    avatar_img_surface = _safe_load_avatar(getattr(controller, "avatar_imagen", None))
 
     # Parametros de partida configurados en el Lobby (US-09 / US-16)
     tiempo_partida_min = int(getattr(controller, "tiempo_partida_min", 3))
@@ -469,13 +483,16 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
                 pygame.draw.rect(world_surface, (57, 255, 20) if en_reactor else color_rgb, bg_ext, 1, border_radius=4)
                 world_surface.blit(lbl_ext, (bg_ext.x + 6, bg_ext.y + 2))
 
-            # Dibujar el Sprite del Operador Hazmat segun color y direccion
-            sprite_char = obtener_sprite_personaje(
-                color_hex=color_hex,
-                direccion=dir_jug,
-                extrayendo=esta_extrayendo,
-                size=(j_rect.width, j_rect.height),
-            )
+            # Dibujar el Sprite del Operador Hazmat segun color y direccion o avatar personalizado (CA-06.3)
+            if jug["es_local"] and avatar_img_surface is not None:
+                sprite_char = pygame.transform.smoothscale(avatar_img_surface, (j_rect.width, j_rect.height))
+            else:
+                sprite_char = obtener_sprite_personaje(
+                    color_hex=color_hex,
+                    direccion=dir_jug,
+                    extrayendo=esta_extrayendo,
+                    size=(j_rect.width, j_rect.height),
+                )
 
             if sprite_char:
                 world_surface.blit(sprite_char, j_rect)
@@ -514,7 +531,7 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
             (WORLD_WIDTH, WORLD_HEIGHT),
             muros_arena,
             REACTOR_CENTER,
-            avatar_img_surface=None,
+            avatar_img_surface,
         )
 
         # Banner de Desempate Automatico (+2 min - CA-16.4)
@@ -752,7 +769,7 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
     if accion_salida == "victoria":
         from Cliente.Interfaz.victoria_view import mostrar_pantalla_victoria
         accion_salida = mostrar_pantalla_victoria(
-            controller, jugador_ganador, jugadores, screen, None, input_manager
+            controller, jugador_ganador, jugadores, screen, avatar_img_surface, input_manager
         )
 
     controller.partida_en_curso = False  # la configuracion vuelve a ser editable

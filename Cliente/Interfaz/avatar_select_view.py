@@ -44,6 +44,7 @@ class AvatarSelectView(ctk.CTk):
         super().__init__()
         self.controller = controller
         self.color_temp = controller.avatar_color
+        self.imagen_temp = getattr(controller, "avatar_imagen", None)
 
         self.title("Battle Arena - Seleccion de Avatar")
         adaptar_ventana_ctk(self, porcentaje_w=0.42, porcentaje_h=0.74, min_w=500, min_h=600)
@@ -154,17 +155,47 @@ class AvatarSelectView(ctk.CTk):
             )
             btn.pack(side="left", padx=4)
 
-        # 3. Boton Guardar y Aplicar
+        # 3. Opcion de Carga desde Disco (CA-06.3)
+        actions_frame = ctk.CTkFrame(frame, fg_color="#181A20", corner_radius=8)
+        actions_frame.pack(padx=25, pady=8, fill="x")
+
+        box_btns = ctk.CTkFrame(actions_frame, fg_color="transparent")
+        box_btns.pack(pady=8)
+
+        ctk.CTkButton(
+            box_btns,
+            text="Cargar Avatar desde Disco (.png, .jpg)",
+            width=220,
+            height=32,
+            font=("Segoe UI", 11, "bold"),
+            fg_color=COLOR_PRIMARIO,
+            hover_color=COLOR_PRIMARIO_HOVER,
+            command=self._cargar_imagen_disco,
+        ).pack(side="left", padx=4)
+
+        self.btn_quitar_img = ctk.CTkButton(
+            box_btns,
+            text="Usar Traje Hazmat Oficial",
+            width=180,
+            height=32,
+            font=("Segoe UI", 11),
+            fg_color="#2B2D42",
+            hover_color="#3B3E5B",
+            command=self._quitar_imagen_disco,
+        )
+        self.btn_quitar_img.pack(side="left", padx=4)
+
+        # 4. Boton Guardar y Aplicar
         ctk.CTkButton(
             frame,
             text="GUARDAR Y APLICAR",
             width=240,
-            height=42,
+            height=40,
             font=("Segoe UI", 13, "bold"),
             fg_color=COLOR_EXITO,
             hover_color=COLOR_EXITO_HOVER,
             command=self._guardar_y_volver,
-        ).pack(pady=(28, 10))
+        ).pack(pady=(12, 10))
 
         # Sincronizar visual inicial
         self._actualizar_previsualizacion()
@@ -172,7 +203,8 @@ class AvatarSelectView(ctk.CTk):
     def _actualizar_previsualizacion(self) -> None:
         """
         Descripcion:
-            Refresca el cuadro de previsualizacion con el personaje Hazmat oficial correspondiente al color activo.
+            Refresca el cuadro de previsualizacion con la imagen de disco (CA-06.3)
+            o con el personaje Hazmat oficial correspondiente al color activo.
         Entradas:
             Ninguna.
         Salidas:
@@ -182,7 +214,21 @@ class AvatarSelectView(ctk.CTk):
         """
         nombre_color = self.controller.obtener_nombre_color(self.color_temp)
 
-        # Sprite oficial del Operador Hazmat segun el color elegido
+        # Caso A: Si existe imagen de disco personalizada cargada (CA-06.3)
+        if self.imagen_temp and os.path.exists(self.imagen_temp):
+            try:
+                pil_img = Image.open(self.imagen_temp).resize((110, 110))
+                ctk_img = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=(110, 110))
+                self.lbl_preview_img.configure(image=ctk_img, text="")
+                self.preview_box.configure(fg_color="#181A20", border_color=self.color_temp)
+                self.lbl_info.configure(
+                    text=f"Avatar Personalizado: {os.path.basename(self.imagen_temp)} | Color: {nombre_color}"
+                )
+                return
+            except Exception as e:
+                print(f"[AVATAR_SELECT] No se pudo cargar imagen previa: {e}")
+
+        # Caso B: Sprite oficial del Operador Hazmat segun el color elegido
         ruta_char = (
             Path(__file__).resolve().parent.parent
             / "Recursos"
@@ -206,6 +252,40 @@ class AvatarSelectView(ctk.CTk):
         self.preview_box.configure(fg_color=self.color_temp, border_color="#FFFFFF")
         self.lbl_info.configure(text=f"Hitbox activa: {nombre_color} ({self.color_temp})")
 
+    def _cargar_imagen_disco(self) -> None:
+        """
+        Descripcion:
+            Abre el cuadro de dialogo del sistema operativo para seleccionar una imagen de avatar (CA-06.3).
+        Entradas:
+            Ninguna.
+        Salidas:
+            None: Actualiza imagen_temp si el usuario elige un archivo valido.
+        Restricciones:
+            Solo admite formatos de imagen .png, .jpg, .jpeg y .bmp.
+        """
+        import tkinter.filedialog as filedialog
+        ruta = filedialog.askopenfilename(
+            title="Seleccionar Imagen de Avatar (CA-06.3)",
+            filetypes=[("Imagenes", "*.png;*.jpg;*.jpeg;*.bmp")],
+        )
+        if ruta:
+            self.imagen_temp = ruta
+            self._actualizar_previsualizacion()
+
+    def _quitar_imagen_disco(self) -> None:
+        """
+        Descripcion:
+            Elimina la asociacion a la imagen de disco para volver a usar exclusivamente el traje Hazmat oficial.
+        Entradas:
+            Ninguna.
+        Salidas:
+            None: Restablece imagen_temp a None y refresca la vista.
+        Restricciones:
+            Ninguna.
+        """
+        self.imagen_temp = None
+        self._actualizar_previsualizacion()
+
     def _seleccionar_color(self, hex_color: str) -> None:
         """
         Descripcion:
@@ -223,7 +303,7 @@ class AvatarSelectView(ctk.CTk):
     def _guardar_y_volver(self) -> None:
         """
         Descripcion:
-            Persiste la seleccion del avatar en la sesion y en config_local.json,
+            Persiste la seleccion del avatar en la sesion y en config_local.json (CA-06.4),
             retornando de inmediato al Menu Principal (HubView).
         Entradas:
             Ninguna.
@@ -233,6 +313,6 @@ class AvatarSelectView(ctk.CTk):
             controller debe tener implementado guardar_config_local().
         """
         self.controller.avatar_color = self.color_temp
-        self.controller.avatar_imagen = None
+        self.controller.avatar_imagen = self.imagen_temp
         self.controller.guardar_config_local()
         self.controller.mostrar_hub()

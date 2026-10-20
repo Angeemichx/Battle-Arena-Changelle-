@@ -531,18 +531,18 @@ def test_colision_circular_reactor_sin_esquinas_cuadradas():
     assert abs(dist_resultante - min_dist_esperada) < 1.0
 
 
-def test_avatar_select_elimina_carga_disco():
+def test_avatar_select_cumple_criterio_ca_06_3_disco():
     """
     Descripcion:
-        Verifica que AvatarSelectView no contenga metodos muertos de carga desde disco
-        y se restrinja exclusivamente a los trajes Hazmat oficiales.
+        Verifica el cumplimiento de CA-06.3 permitiendo la seleccion de trajes Hazmat
+        o la carga opcional de imagen personalizada desde disco.
     Entradas:
         Ninguna.
     Salidas:
-        None: Verifica la ausencia de metodos de disco.
+        None: Verifica la presencia de los metodos de carga y restablecimiento.
     Restricciones:
         Ninguna.
     """
     from Cliente.Interfaz.avatar_select_view import AvatarSelectView
-    assert not hasattr(AvatarSelectView, "_cargar_imagen_disco")
-    assert not hasattr(AvatarSelectView, "_quitar_imagen_disco")
+    assert hasattr(AvatarSelectView, "_cargar_imagen_disco")
+    assert hasattr(AvatarSelectView, "_quitar_imagen_disco")

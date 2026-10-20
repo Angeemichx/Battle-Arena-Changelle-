@@ -38,7 +38,8 @@ Todos los archivos `.py` del modulo cumplen con la guia de estilo y documentacio
   - **Flujo obligatorio de Correo y Codigo de 6 digitos en `Sign Up`:** Valida formato de correo (`usuario@dominio.com`), usuario unico, contrasena alfanumerica de $\ge 8$ caracteres y exige el **codigo de verificacion de 6 digitos** antes de crear la cuenta.
 
 ### 1.4 Vistas Administrativas y Componentes (`US-05`, `US-06`, `US-08`)
-- **[`hub_view.py`](Cliente/Interfaz/hub_view.py), [`jugar_view.py`](Cliente/Interfaz/jugar_view.py), [`perfil_view.py`](Cliente/Interfaz/perfil_view.py), [`settings_view.py`](Cliente/Interfaz/settings_view.py) y [`Cliente/Interfaz/Components/`](Cliente/Interfaz/Components/):**
+- **[`avatar_select_view.py`](Cliente/Interfaz/avatar_select_view.py), [`hub_view.py`](Cliente/Interfaz/hub_view.py), [`jugar_view.py`](Cliente/Interfaz/jugar_view.py), [`perfil_view.py`](Cliente/Interfaz/perfil_view.py), [`settings_view.py`](Cliente/Interfaz/settings_view.py) y [`Cliente/Interfaz/Components/`](Cliente/Interfaz/Components/):**
+  - **Selector de Avatar en CustomTkinter (`avatar_select_view.py` - US-06):** Ventana dedicada accesible desde el Menú Principal para previsualizar y elegir entre los 5 colores base (#E63946, #1D3557, #2A9D8F, #E9C46A, #7209B7), cargar imagen de avatar desde disco mediante `filedialog` y persistir la configuración en `config_local.json`.
   - **Header Avatar persistente** en la barra superior (`Components/header_avatar.py`).
   - **Salas de Partida (`Jugar`):** Permite crear sala como Anfitrion (Host) o conectarse como Invitado por IP y Puerto.
   - **Configuracion de Audio (`Settings`):** Slider de volumen de `0%` a `100%` en tiempo real con boton `LISTO` que retorna a la vista de origen.

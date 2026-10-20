@@ -111,7 +111,10 @@ class AppController:
         self.tiempo_partida_min = 3    # Duracion configurable en minutos (1, 3, 5)
         self.puntos_meta = 500         # Meta de puntos para ganar (por defecto 500 pts)
         self.tiempo_congelado_seg = 5  # Segundos de inmovilizacion (US-08)
+        self.modo_fin = "tiempo"       # Forma de terminar: "tiempo" o "puntos" (CA-08.3)
+        self.partida_en_curso = False  # Mientras sea True la configuracion queda bloqueada (CA-08.6)
         self.jugadores_sala = []
+        self._cargar_configuracion_partida()
 
         # 2. Parametros y Puente de Red TCP
         self.ip_servidor = self._obtener_ip_local()
@@ -129,6 +132,43 @@ class AppController:
 
         # 4. Referencia de la ventana activa (garantiza una sola ventana abierta a la vez)
         self.ventana_actual = None
+
+    # ---- Configuracion de partida (US-08) --------------------------------
+    def configuracion_partida(self):
+        """Devuelve la configuracion vigente como ConfiguracionPartida (valida o lanza ConfiguracionInvalida)."""
+        from Cliente.Config.configuracion import ConfiguracionPartida
+        return ConfiguracionPartida(
+            modo_fin=self.modo_fin,
+            minutos=self.tiempo_partida_min,
+            puntos_objetivo=self.puntos_meta,
+            segundos_congelamiento=self.tiempo_congelado_seg,
+        )
+
+    def _cargar_configuracion_partida(self) -> None:
+        """Carga la ultima configuracion guardada (CA-08.1). Ante cualquier fallo conserva los valores por defecto."""
+        try:
+            from Cliente.Config.config_repository import JsonConfiguracionRepository
+            cfg = JsonConfiguracionRepository().cargar()
+            self.modo_fin = cfg.modo_fin
+            self.tiempo_partida_min = cfg.minutos
+            self.puntos_meta = cfg.puntos_objetivo
+            self.tiempo_congelado_seg = cfg.segundos_congelamiento
+        except Exception as e:
+            print(f"[CONFIG] No se pudo cargar la configuracion de partida: {e}")
+
+    def guardar_configuracion_partida(self) -> bool:
+        """Valida y persiste la configuracion actual. Devuelve False si no es valida o no se pudo guardar."""
+        try:
+            from Cliente.Config.config_repository import JsonConfiguracionRepository
+            JsonConfiguracionRepository().guardar(self.configuracion_partida())
+            return True
+        except Exception as e:
+            print(f"[CONFIG] No se pudo guardar la configuracion de partida: {e}")
+            return False
+
+    def configuracion_editable(self) -> bool:
+        """La configuracion solo se puede cambiar antes de iniciar la partida (CA-08.6)."""
+        return not self.partida_en_curso
 
     def _obtener_ip_local(self) -> str:
         """
@@ -606,6 +646,7 @@ class AppController:
             Ninguna.
         """
         self._cerrar_ventana_actual()
+        self.guardar_configuracion_partida()  # CA-08.1: se recuerda la ultima configuracion usada
         from Cliente.Interfaz.arena_view import iniciar_arena_pygame
         iniciar_arena_pygame(self)
 

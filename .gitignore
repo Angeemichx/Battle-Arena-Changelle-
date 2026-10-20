@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+Cliente/Recursos/ultima_configuracion.json

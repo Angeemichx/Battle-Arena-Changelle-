@@ -58,6 +58,7 @@ def evaluar_condicion_victoria(
     jugadores: list[dict],
     tiempo_restante: float,
     puntos_meta: int,
+    modo_fin: str | None = None,
 ) -> tuple[bool, dict | None, bool, float]:
     """
     Descripcion:
@@ -68,6 +69,8 @@ def evaluar_condicion_victoria(
         jugadores (list[dict]): Lista de diccionarios de los jugadores con su clave 'puntos'.
         tiempo_restante (float): Segundos restantes en el temporizador de la partida.
         puntos_meta (int): Puntaje objetivo para ganar la partida (por defecto 500 pts).
+        modo_fin (str | None): Configuracion US-08. "tiempo": solo termina al agotarse el reloj;
+        "puntos": solo termina al alcanzar la meta; None: cualquiera de las dos (comportamiento original).
     Salidas:
         tuple[bool, dict | None, bool, float]: Tupla con (partida_terminada, jugador_ganador,
         hubo_desempate, nuevo_tiempo_restante).
@@ -79,6 +82,10 @@ def evaluar_condicion_victoria(
 
     alguien_alcanzo_meta = any(j.get("puntos", 0) >= puntos_meta for j in jugadores)
     tiempo_agotado = tiempo_restante <= 0.0
+    if modo_fin == "tiempo":
+        alguien_alcanzo_meta = False
+    elif modo_fin == "puntos":
+        tiempo_agotado = False
 
     if not alguien_alcanzo_meta and not tiempo_agotado:
         return False, None, False, tiempo_restante
@@ -88,7 +95,8 @@ def evaluar_condicion_victoria(
 
     # Regla CA-16.4: Si 2 o mas jugadores empatan en el puntaje maximo, se otorgan +120s de desempate
     if len(lideres) > 1:
-        nuevo_tiempo = max(tiempo_restante, 0.0) + 120.0
+        # En modo "puntos" no hay reloj que extender: el desempate sube la meta (lo hace la arena).
+        nuevo_tiempo = tiempo_restante if modo_fin == "puntos" else max(tiempo_restante, 0.0) + 120.0
         return False, None, True, nuevo_tiempo
 
     return True, lideres[0], False, tiempo_restante
@@ -183,7 +191,12 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
     # Parametros de partida configurados en el Lobby (US-09 / US-16)
     tiempo_partida_min = int(getattr(controller, "tiempo_partida_min", 3))
     puntos_meta = int(getattr(controller, "puntos_meta", 500))
-    tiempo_restante = float(tiempo_partida_min * 60)
+    modo_fin = getattr(controller, "modo_fin", None)
+    if modo_fin not in ("tiempo", "puntos"):
+        modo_fin = None
+    # En modo "puntos" el reloj cuenta hacia arriba (tiempo transcurrido); en los demas, hacia abajo.
+    tiempo_restante = 0.0 if modo_fin == "puntos" else float(tiempo_partida_min * 60)
+    controller.partida_en_curso = True  # bloquea la configuracion hasta salir (CA-08.6)
     velocidad_jugador = 7.0
 
     # Estado de Victoria y Desempate (US-16 / US-17)
@@ -216,7 +229,10 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
         comandos_previos = set(comandos_actuales)
 
         if not partida_finalizada:
-            tiempo_restante = max(0.0, tiempo_restante - dt)
+            if modo_fin == "puntos":
+                tiempo_restante += dt
+            else:
+                tiempo_restante = max(0.0, tiempo_restante - dt)
             if banner_desempate_timer > 0.0:
                 banner_desempate_timer = max(0.0, banner_desempate_timer - dt)
 
@@ -280,7 +296,7 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
 
             # Evaluar Condicion de Victoria y Desempate Automatico (US-16 / CA-16.4)
             terminada, ganador, hubo_desempate, nuevo_t = evaluar_condicion_victoria(
-                jugadores, tiempo_restante, puntos_meta
+                jugadores, tiempo_restante, puntos_meta, modo_fin
             )
             if hubo_desempate:
                 tiempo_restante = nuevo_t
@@ -294,6 +310,9 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
                 partida_finalizada = True
                 jugador_ganador = ganador
                 jugador_local["extrayendo"] = False
+                # US-17: la pantalla de victoria (victoria_view) toma el control tras este fotograma
+                accion_salida = "victoria"
+                corriendo = False
                 # Si el jugador venia manteniendo presionado el boton de accion en el Reactor,
                 # exigir que lo suelte y lo vuelva a presionar para salir de la Pantalla de Victoria
                 if Command.ACTION in comandos_actuales:
@@ -445,7 +464,7 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
         # 5. PANTALLA DE VICTORIA (US-17) CON NAVEGACION POR MANDO
         # =====================================================================
         btn_volver_victoria_rect = None
-        if partida_finalizada and jugador_ganador is not None:
+        if partida_finalizada and jugador_ganador is not None and accion_salida != "victoria":
             overlay = pygame.Surface((w, h), pygame.SRCALPHA)
             overlay.fill((8, 10, 16, 220))
             screen.blit(overlay, (0, 0))
@@ -553,6 +572,13 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
 
         pygame.display.flip()
 
+    if accion_salida == "victoria":
+        from Cliente.Interfaz.victoria_view import mostrar_pantalla_victoria
+        accion_salida = mostrar_pantalla_victoria(
+            controller, jugador_ganador, jugadores, screen, avatar_img_surface, input_manager
+        )
+
+    controller.partida_en_curso = False  # la configuracion vuelve a ser editable
     if accion_salida == "lobby":
         from Cliente.Interfaz.lobby_view import iniciar_lobby_pygame
         iniciar_lobby_pygame(controller, screen=screen)

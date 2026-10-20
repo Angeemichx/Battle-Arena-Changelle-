@@ -10,7 +10,7 @@ Dos jugadores compiten en tiempo real dentro de una arena gráfica, controlando 
 El proyecto se divide en cliente y servidor.
 
 ```
-cliente/      Interfaz (Pygame), entrada de hardware y comunicación de red
+Cliente/      Interfaz (Pygame), entrada de hardware (Inputs), configuración y red
 servidor/     Lógica de juego, autenticación y persistencia (arquitectura por capas)
   domain/            Entidades del negocio
   use_cases/         Reglas de negocio (autenticación, motor de juego)
@@ -33,7 +33,7 @@ El servidor se despliega en un contenedor Docker. El cliente se ejecuta en la m�
 
 ```
 pip install pytest
-python -m pytest cliente/tests -q
+python -m pytest Cliente/Inputs/Tests Cliente/Config/Tests -q
 ```
 
 ## Documentación

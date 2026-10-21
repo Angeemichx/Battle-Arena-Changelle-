@@ -17,31 +17,18 @@ steps:
       versionSpec: '3.11'
     displayName: Usar Python 3.11
 
-<<<<<<< HEAD
-- script: |
-    echo Add other tasks to build, test, and deploy your project.
-    echo See https://aka.ms/yaml
-  displayName: 'Run a multi-line script'
-
-- script: |
-    python3 -m pip install pytest pygame-ce
-    SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy python3 -m pytest Cliente/Inputs/Tests Cliente/Config/Tests -q
-  displayName: 'Pruebas unitarias del cliente (entrada y configuracion)'
-=======
-steps:
-  - task: UsePythonVersion@0
-    inputs:
-      versionSpec: '3.11'
-    displayName: Usar Python 3.11
-
   - script: |
       python -m pip install --upgrade pip
       python -m pip install -r Servidor/requirements.txt pytest
-    displayName: Instalar dependencias
+    displayName: Instalar dependencias del servidor
 
   - script: python -m pytest Servidor/pruebas/prueba_auth.py -v
-    displayName: Pruebas de autenticación
+    displayName: Pruebas de autenticación (servidor)
+
+  - script: |
+      python -m pip install pygame-ce
+      SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy python -m pytest Cliente/Inputs/Tests Cliente/Config/Tests -q
+    displayName: Pruebas unitarias del cliente (entrada y configuracion)
 
   - script: docker build -f Servidor/Dockerfile -t battle-arena-servidor:$(Build.BuildId) .
     displayName: Construir imagen Docker
->>>>>>> Int4_auth_json

@@ -17,6 +17,7 @@ steps:
       versionSpec: '3.11'
     displayName: Usar Python 3.11
 
+<<<<<<< HEAD
 - script: |
     echo Add other tasks to build, test, and deploy your project.
     echo See https://aka.ms/yaml
@@ -26,3 +27,20 @@ steps:
     python3 -m pip install pytest pygame-ce
     SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy python3 -m pytest Cliente/Inputs/Tests Cliente/Config/Tests -q
   displayName: 'Pruebas unitarias del cliente (entrada y configuracion)'
+=======
+  - script: |
+      python -m pip install --upgrade pip
+      python -m pip install -r Servidor/requirements.txt pytest
+    displayName: Instalar dependencias del servidor
+
+  - script: python -m pytest Servidor/pruebas/prueba_auth.py -v
+    displayName: Pruebas de autenticación (servidor)
+
+  - script: |
+      python -m pip install pygame-ce
+      SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy python -m pytest Cliente/Inputs/Tests Cliente/Config/Tests -q
+    displayName: Pruebas unitarias del cliente (entrada y configuracion)
+
+  - script: docker build -f Servidor/Dockerfile -t battle-arena-servidor:$(Build.BuildId) .
+    displayName: Construir imagen Docker
+>>>>>>> origin/main

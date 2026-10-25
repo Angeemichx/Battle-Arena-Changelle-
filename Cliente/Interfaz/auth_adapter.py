@@ -5,7 +5,7 @@ Conecta login_view.py y signup_view.py con el repositorio JSON del Integrante 4
 Cumple con US-01, US-02 y US-03 (validaciones notorias, bcrypt, codigo de 6 digitos y SMTP opcional).
 """
 from __future__ import annotations
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import os
 from pathlib import Path
 import re
@@ -18,6 +18,52 @@ from Servidor.adapters.json_repository import JsonRepository
 from Servidor.domain.cuenta import Cuenta
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _ahora() -> datetime:
+    """
+    Descripcion:
+        Retorna la fecha y hora actual en tiempo universal coordinado (UTC) sin zona horaria
+        para permitir comparaciones homogeneas entre marcas de expiracion.
+    Entradas:
+        Ninguna.
+    Salidas:
+        datetime: Instancia actual de datetime en UTC sin tzinfo.
+    Restricciones:
+        Ninguna.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _cargar_env_local() -> None:
+    """
+    Descripcion:
+        Lee y carga variables de entorno desde el archivo .env ubicado en la raiz del
+        proyecto si dicho archivo existe y las claves no estan previamente en os.environ.
+    Entradas:
+        Ninguna.
+    Salidas:
+        None: Actualiza el diccionario os.environ con las variables definidas en .env.
+    Restricciones:
+        Ignora lineas de comentario que inician con '#' y omite claves vacias.
+    """
+    env_file = Path(__file__).resolve().parent.parent.parent / ".env"
+    if env_file.exists():
+        try:
+            with open(env_file, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        k = k.strip()
+                        v = v.strip().strip("'\"")
+                        if k and k not in os.environ:
+                            os.environ[k] = v
+        except Exception:
+            pass
+
+
+_cargar_env_local()
 DEFAULT_JSON_PATH = (
     Path(__file__).resolve().parent.parent.parent
     / "Servidor"
@@ -98,13 +144,14 @@ class CompatibleJsonRepository(JsonRepository):
 # Documentacion de Clase: ClienteAuthAdapter
 # Proposito:
 #   Gestionar todas las reglas de negocio de registro de cuenta, generacion/envio
-#   de codigos de verificacion de 6 digitos, inicio de sesion con hash bcrypt y
-#   validacion de perfiles de administrador (Admin 1 y Admin 2) verificando que
-#   no esten ocupados en otro ordenador.
+#   de codigos de verificacion de 6 digitos, recuperacion de contrasena olvidada (US-05),
+#   inicio de sesion con hash bcrypt y validacion de perfiles de administrador
+#   (Admin 1 y Admin 2) verificando que no esten ocupados en otro ordenador.
 # Contenido:
 #   - Atributos: repo (CompatibleJsonRepository), codigos_pendientes (dict[str, str]).
 #   - Metodos: validar_formato_correo, validar_reglas_password, enviar_codigo_verificacion,
-#     _intentar_envio_smtp, registrar_y_verificar, verificar_usuario_en_uso e iniciar_sesion.
+#     _intentar_envio_smtp, solicitar_codigo_recuperacion, restablecer_password,
+#     registrar_y_verificar, verificar_usuario_en_uso e iniciar_sesion.
 # =============================================================================
 class ClienteAuthAdapter:
     def __init__(self, json_path: str | Path = DEFAULT_JSON_PATH):
@@ -191,51 +238,170 @@ class ClienteAuthAdapter:
         if enviado_smtp:
             return {
                 "ok": True,
-                "codigo": codigo,
-                "msg": f"Codigo enviado a su correo {email_clean}. Revise su bandeja.",
+                "msg": f"Codigo de verificacion enviado a {email_clean}. Revise su bandeja de entrada (y spam).",
             }
         return {
-            "ok": True,
-            "codigo": codigo,
-            "msg": f"Codigo de verificacion generado para {email_clean}: [{codigo}]",
+            "ok": False,
+            "msg": (
+                f"No se pudo enviar el codigo al correo {email_clean}.\n"
+                "Verifique su conexion o que las credenciales SMTP esten en .env."
+            ),
         }
 
-    def _intentar_envio_smtp(self, destino: str, username: str, codigo: str) -> bool:
+    def _intentar_envio_smtp(
+        self,
+        destino: str,
+        username: str,
+        codigo: str,
+        asunto: str = "Battle Arena Challenge - Codigo de Verificacion",
+        cuerpo: str | None = None,
+    ) -> bool:
         """
         Descripcion:
-            Intenta enviar un correo real mediante el servidor SSL de Gmail si las variables
-            de entorno SMTP_EMAIL y SMTP_PASSWORD estan definidas en el sistema.
+            Intenta enviar un correo real mediante el servidor SSL de Gmail usando las variables
+            del archivo .env (SMTP_USER y SMTP_PASS) o variables de entorno.
         Entradas:
             destino (str): Direccion de correo del destinatario.
             username (str): Nombre del piloto para personalizar el cuerpo del mensaje.
             codigo (str): Codigo de 6 digitos a enviar.
+            asunto (str): Asunto del correo.
+            cuerpo (str | None): Cuerpo personalizado; si es None genera el mensaje de verificacion.
         Salidas:
             bool: True si el correo fue despachado con exito por SMTP; False si no hay
             credenciales configuradas o si ocurre un error de red.
         Restricciones:
-            Usa un timeout maximo de 5 segundos para no congelar la interfaz grafica.
+            Usa un timeout maximo de 8 segundos para no congelar la interfaz grafica.
         """
-        smtp_user = os.getenv("SMTP_EMAIL", "").strip()
-        smtp_pass = os.getenv("SMTP_PASSWORD", "").strip()
+        smtp_user = os.getenv("SMTP_USER", "").strip() or os.getenv("SMTP_EMAIL", "").strip()
+        smtp_pass = os.getenv("SMTP_PASS", "").strip() or os.getenv("SMTP_PASSWORD", "").strip()
+        smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com").strip()
+        smtp_port = int(os.getenv("SMTP_PORT", "465"))
+
         if not smtp_user or not smtp_pass:
+            print("[SMTP] Falta SMTP_USER o SMTP_PASS en .env o entorno.", flush=True)
             return False
         try:
             msg = EmailMessage()
-            msg["Subject"] = "Battle Arena Challenge - Codigo de Verificacion"
+            msg["Subject"] = asunto
             msg["From"] = smtp_user
             msg["To"] = destino
-            msg.set_content(
-                f"Hola {username},\n\n"
-                f"Tu codigo de verificacion para Battle Arena Challenge es: {codigo}\n\n"
-                f"Este codigo expira en 15 minutos."
-            )
-            with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=5) as server:
+            if cuerpo is None:
+                cuerpo = (
+                    f"Hola {username},\n\n"
+                    f"Tu codigo de verificacion para Battle Arena Challenge es: {codigo}\n\n"
+                    f"Este codigo expira en 15 minutos."
+                )
+            msg.set_content(cuerpo)
+            with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=8) as server:
                 server.login(smtp_user, smtp_pass)
                 server.send_message(msg)
+            print(f"[SMTP] Correo enviado exitosamente a {destino} ({asunto})", flush=True)
             return True
         except Exception as e:
-            print(f"[SMTP INFO] Usando verificacion local ({e})")
+            print(f"[SMTP ERROR] Error enviando correo a {destino}: {e}", flush=True)
             return False
+
+    def solicitar_codigo_recuperacion(self, email: str) -> dict:
+        """
+        Descripcion:
+            Genera un codigo de recuperacion de 6 digitos para la cuenta asociada al correo
+            indicado (US-05) y lo envia mediante correo SMTP sin exponerlo en pantalla.
+        Entradas:
+            email (str): Correo registrado en el sistema.
+        Salidas:
+            dict: Claves 'ok' (bool) y 'msg' (str).
+        Restricciones:
+            Falla si el correo no existe o si no tiene formato valido.
+        """
+        email_clean = email.strip().lower()
+        if not self.validar_formato_correo(email_clean):
+            return {"ok": False, "msg": "Formato de correo invalido (ejemplo: usuario@gmail.com)."}
+
+        with self.repo.lock:
+            cuenta = self.repo._email(email_clean)
+            if cuenta is None:
+                return {"ok": False, "msg": "No existe ninguna cuenta registrada con este correo."}
+
+            codigo = f"{secrets.randbelow(10**6):06d}"
+            cuenta.reset_code = codigo
+            cuenta.reset_expires = (_ahora() + timedelta(minutes=30)).isoformat()
+            self.repo.save(cuenta)
+
+        cuerpo = (
+            f"Hola {cuenta.username},\n\n"
+            f"Has solicitado restablecer tu contrasena en Battle Arena Challenge.\n"
+            f"Tu codigo de seguridad de 6 digitos es: {codigo}\n\n"
+            f"Este codigo expira en 30 minutos.\n"
+            f"Si no solicitaste este cambio, puedes ignorar este mensaje de forma segura."
+        )
+        enviado = self._intentar_envio_smtp(
+            destino=email_clean,
+            username=cuenta.username,
+            codigo=codigo,
+            asunto="Battle Arena Challenge - Recuperar Contrasena",
+            cuerpo=cuerpo,
+        )
+        if enviado:
+            return {
+                "ok": True,
+                "msg": f"Codigo de recuperacion enviado a {email_clean}. Revise su bandeja de entrada (y spam).",
+            }
+        return {
+            "ok": False,
+            "msg": (
+                f"No se pudo enviar el correo de recuperacion a {email_clean}.\n"
+                "Verifique su conexion o que las credenciales SMTP esten en .env."
+            ),
+        }
+
+    def restablecer_password(
+        self, email: str, codigo: str, nueva_pass: str, confirm_pass: str
+    ) -> dict:
+        """
+        Descripcion:
+            Valida el codigo de seguridad de 6 digitos, comprueba las politicas de contrasena
+            y actualiza el hash bcrypt en usuarios.json (US-05).
+        Entradas:
+            email (str): Correo electronico de la cuenta.
+            codigo (str): Codigo de 6 digitos recibido por correo.
+            nueva_pass (str): Nueva contrasena en texto plano.
+            confirm_pass (str): Confirmacion de la nueva contrasena.
+        Salidas:
+            dict: Claves 'ok' (bool) y 'msg' (str).
+        Restricciones:
+            Requiere minimo 8 caracteres, al menos una letra y un numero.
+        """
+        email_clean = email.strip().lower()
+        cod_clean = codigo.strip()
+
+        if not cod_clean:
+            return {"ok": False, "msg": "Ingrese el codigo de 6 digitos recibido en su correo."}
+        if not nueva_pass or not confirm_pass:
+            return {"ok": False, "msg": "Debe ingresar y confirmar su nueva contrasena."}
+        if nueva_pass != confirm_pass:
+            return {"ok": False, "msg": "Las contrasenas no coinciden."}
+        if not self.validar_reglas_password(nueva_pass):
+            return {
+                "ok": False,
+                "msg": "Contrasena debil: requiere minimo 8 caracteres, al menos una letra y un numero.",
+            }
+
+        with self.repo.lock:
+            cuenta = self.repo._email(email_clean)
+            if (
+                not cuenta
+                or cuenta.reset_code != cod_clean
+                or not cuenta.reset_expires
+                or datetime.fromisoformat(cuenta.reset_expires) < _ahora()
+            ):
+                return {"ok": False, "msg": "Codigo invalido o expirado. Solicite uno nuevo."}
+
+            cuenta.password_hash = bcrypt.hashpw(nueva_pass.encode(), bcrypt.gensalt()).decode()
+            cuenta.reset_code = None
+            cuenta.reset_expires = None
+            self.repo.save(cuenta)
+
+        return {"ok": True, "msg": "Contrasena restablecida con exito. Ya puede iniciar sesion."}
 
     def registrar_y_verificar(
         self,

@@ -25,8 +25,8 @@ from Cliente.Interfaz.Components.ui_helpers import (
 # Contenido:
 #   - Atributos principales: controller (AppController), txt_usuario (CTkEntry),
 #     txt_password (CTkEntry), btn_ver (CTkButton), alerta_box (CTkFrame),
-#     lbl_error (CTkLabel), btn_login (CTkButton), btn_signup (CTkButton) y
-#     btn_admin (CTkButton).
+#     lbl_error (CTkLabel), btn_login (CTkButton), btn_signup (CTkButton),
+#     btn_olvido (CTkButton) y btn_admin (CTkButton).
 #   - Metodos: __init__, _toggle_ver, _mostrar_rechazo y _ejecutar_login.
 # =============================================================================
 class LoginView(ctk.CTk):
@@ -170,7 +170,19 @@ class LoginView(ctk.CTk):
             font=("Segoe UI", 12, "underline"),
             command=self.controller.mostrar_signup,
         )
-        self.btn_signup.pack(pady=(2, 12))
+        self.btn_signup.pack(pady=(2, 4))
+
+        # Enlace a Recuperar Contraseña (US-05)
+        self.btn_olvido = ctk.CTkButton(
+            self.frame,
+            text="¿Olvidó su contraseña? Recuperar acceso",
+            fg_color="transparent",
+            text_color="#8EA8C3",
+            hover=False,
+            font=("Segoe UI", 11, "underline"),
+            command=self.controller.mostrar_recuperar_password,
+        )
+        self.btn_olvido.pack(pady=(0, 10))
 
         # Unico boton que redirige a la ventana independiente de Acceso Admin con icono
         ruta_badge = Path(__file__).resolve().parent.parent / "Recursos" / "Sprites" / "UI" / "badge_admin.png"

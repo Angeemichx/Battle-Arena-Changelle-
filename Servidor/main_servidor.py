@@ -26,10 +26,6 @@ def main():
         if accion == "register":
             return auth.registrar(msg.get("email", ""), msg.get("username", ""), msg.get("password", ""))
 
-<<<<<<< HEAD
-
-=======
->>>>>>> Int4_auth_json
         if accion == "verify":
             return auth.verificar(msg.get("email", ""), msg.get("code", ""))
 
@@ -38,10 +34,6 @@ def main():
                 if resp["ok"]:
                     sesion["email"] = resp["email"]
                 return resp
-<<<<<<< HEAD
-    
-
-=======
         if accion == "me":
             if "email" not in sesion:
                 return {"ok": False, "msg": "Debes iniciar sesión"}
@@ -54,7 +46,6 @@ def main():
             return auth.restablecer_password(
                 msg.get("email", ""), msg.get("code", ""), msg.get("new_password", "")
             )
->>>>>>> Int4_auth_json
         # Aquí se van sumando: verify, login, me, forgot, reset
         return {"ok": False, "msg": "Acción desconocida"}
 

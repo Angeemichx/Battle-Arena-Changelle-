@@ -11,15 +11,9 @@ def _ahora():
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 class AuthService:
-<<<<<<< HEAD
-    def __init__(self, repo):
-
-        self.repo = repo       
-=======
     def __init__(self, repo, mailer):
         self.repo = repo
         self.mailer = mailer
->>>>>>> Int4_auth_json
 
 
     def registrar(self, email: str, username: str, password: str) -> dict:
@@ -33,16 +27,8 @@ class AuthService:
         if not username:
             return {"ok": False, "msg": "Usuario requerido"}
 
-<<<<<<< HEAD
-
-        # evita que dos registros iguales se crucen
-        with self.repo.lock:
-            if self.repo.get_by_email(email) or self.repo.username_exists(username):
-
-=======
         with self.repo.lock:
             if self.repo._email(email) or self.repo.user_exists(username):
->>>>>>> Int4_auth_json
                 return {"ok": False, "msg": "Correo o usuario ya registrado"}
 
             codigo = f"{secrets.randbelow(10**6):06d}"

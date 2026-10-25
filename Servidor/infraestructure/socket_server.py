@@ -155,6 +155,13 @@ class ServidorJuego:
                 "jugador": id_jugador,
                 "mensaje": mensaje.get("mensaje", "¡Acción!"),})
 
+        # Manejo de peticiones de cuentas (registro, verificacion, login, etc.)
+        elif accion:
+            sesion = self.sesiones.setdefault(id_jugador, {})
+            with self.lock:
+                respuesta = self.manejar(mensaje, sesion)
+            self._enviar_a(self.clientes.get(id_jugador), respuesta)
+
     #Enviar mensaje a todos los clientes que estén conectados 
 
     def _broadcast(self, mensaje: dict):

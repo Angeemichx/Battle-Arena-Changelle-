@@ -546,3 +546,76 @@ def test_avatar_select_cumple_criterio_ca_06_3_disco():
     from Cliente.Interfaz.avatar_select_view import AvatarSelectView
     assert hasattr(AvatarSelectView, "_cargar_imagen_disco")
     assert hasattr(AvatarSelectView, "_quitar_imagen_disco")
+
+
+def test_recuperacion_contrasena_us_05(tmp_path):
+    """
+    Descripcion:
+        Verifica el flujo completo de recuperacion de contrasena (US-05):
+        solicitud con correo invalido, cuenta inexistente, generacion de codigo,
+        validacion de clave debil y actualizacion efectiva con hash bcrypt.
+    Entradas:
+        tmp_path (pathlib.Path): Directorio temporal proporcionado por pytest.
+    Salidas:
+        None: Ejecuta aserciones sobre el estado de la recuperacion y nuevo login.
+    Restricciones:
+        Requiere bcrypt instalado y permisos de escritura en tmp_path.
+    """
+    archivo_temp = tmp_path / "usuarios.json"
+    auth = ClienteAuthAdapter(json_path=str(archivo_temp))
+
+    # Crear una cuenta verificada previa
+    auth.codigos_pendientes["piloto@gmail.com"] = "123456"
+    res_reg = auth.registrar_y_verificar(
+        email="piloto@gmail.com",
+        username="PilotoTest",
+        password="ClaveOriginal123",
+        confirm_password="ClaveOriginal123",
+        codigo_ingresado="123456",
+    )
+    assert res_reg["ok"] is True
+
+    # 1. Rechazo por correo invalido
+    r_bad_email = auth.solicitar_codigo_recuperacion("correo_sin_arroba")
+    assert r_bad_email["ok"] is False
+
+    # 2. Rechazo por cuenta inexistente
+    r_not_found = auth.solicitar_codigo_recuperacion("nadie@gmail.com")
+    assert r_not_found["ok"] is False
+
+    # 3. Solicitud exitosa: genera codigo y lo persiste en la cuenta
+    r_sol = auth.solicitar_codigo_recuperacion("piloto@gmail.com")
+    # Si no hay credenciales SMTP el envio fallara de forma segura sin exponer codigo en pantalla
+    # Verificamos que el reset_code se genero en usuarios.json
+    cuenta = auth.repo.get_by_email("piloto@gmail.com")
+    assert cuenta.reset_code is not None
+    codigo_generado = cuenta.reset_code
+
+    # 4. Rechazo al restablecer por contrasenas que no coinciden
+    r_no_match = auth.restablecer_password(
+        "piloto@gmail.com", codigo_generado, "NuevaClave123", "OtraClave999"
+    )
+    assert r_no_match["ok"] is False
+
+    # 5. Rechazo al restablecer por contrasena debil
+    r_debil = auth.restablecer_password(
+        "piloto@gmail.com", codigo_generado, "corta", "corta"
+    )
+    assert r_debil["ok"] is False
+
+    # 6. Rechazo por codigo incorrecto
+    r_bad_code = auth.restablecer_password(
+        "piloto@gmail.com", "000000", "NuevaClave123", "NuevaClave123"
+    )
+    assert r_bad_code["ok"] is False
+
+    # 7. Restablecimiento exitoso
+    r_ok = auth.restablecer_password(
+        "piloto@gmail.com", codigo_generado, "NuevaClave123", "NuevaClave123"
+    )
+    assert r_ok["ok"] is True
+
+    # 8. Comprobar que puede iniciar sesion con la nueva clave
+    login_nuevo = auth.iniciar_sesion("piloto@gmail.com", "NuevaClave123")
+    assert login_nuevo["ok"] is True
+    assert login_nuevo["username"] == "PilotoTest"

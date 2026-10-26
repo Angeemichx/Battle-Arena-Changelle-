@@ -140,10 +140,14 @@ class ServidorJuego:
             self._broadcast(self.partida.estado_actual())
 
         elif tipo == "movimiento":
-            dx = mensaje.get("dx", 0)
-            dy = mensaje.get("dy", 0)
+            x = mensaje.get("x", 0)
+            y = mensaje.get("y", 0)
             with self.lock:
-                self.partida.mover_jugador(id_jugador, dx, dy)
+                if id_jugador in self.partida.jugadores:
+                    jugador = self.partida.jugadores[id_jugador]
+                    jugador.x = x
+                    jugador.y = y
+                    jugador.sumar_punto()
                 estado = self.partida.estado_actual()
             self._broadcast(estado)
 

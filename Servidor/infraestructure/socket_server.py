@@ -131,6 +131,7 @@ class ServidorJuego:
 
         tipo = mensaje.get("tipo")
         accion = mensaje.get("action")
+        print(f"[DEBUG] jugador {id_jugador}: {mensaje}", flush=True)
 
         if tipo == "configurar_partida":
             minutos = mensaje.get("minutos", 5)

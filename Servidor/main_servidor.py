@@ -1,7 +1,10 @@
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+<<<<<<< Updated upstream
 
+=======
+>>>>>>> Stashed changes
 from Servidor.adapters.json_repository import JsonRepository
 from Servidor.use_cases.auth_service import AuthService
 from Servidor.infraestructure.socket_server import ServidorJuego
@@ -11,6 +14,8 @@ BASE = Path(__file__).resolve().parent
 
 
 def main():
+    load_dotenv(BASE.parent / ".env")
+
     # Variables
     ruta = os.getenv("DATA_FILE", str(BASE / "infraestructure" / "data" / "usuarios.json"))
     host = os.getenv("HOST", "0.0.0.0")
@@ -18,8 +23,12 @@ def main():
 
     # Crear adaptadores y casos de uso
     repo = JsonRepository(ruta)
+<<<<<<< Updated upstream
     load_dotenv(BASE.parent / ".env")
     
+=======
+
+>>>>>>> Stashed changes
     if os.getenv("SMTP_USER") and os.getenv("SMTP_PASS"):
         mailer = SmtpMailer(
             os.getenv("SMTP_HOST", "smtp.gmail.com"),

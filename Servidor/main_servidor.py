@@ -1,15 +1,14 @@
 import os
 from pathlib import Path
-from dotenv import load_dotenv
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
+from dotenv import load_dotenv
+
 from Servidor.adapters.json_repository import JsonRepository
 from Servidor.use_cases.auth_service import AuthService
 from Servidor.infraestructure.socket_server import ServidorJuego
 from Servidor.adapters.smtp_mailer import SmtpMailer
 from Servidor.adapters.consola_mailer import ConsolaMailer
+
 BASE = Path(__file__).resolve().parent
 
 
@@ -23,12 +22,7 @@ def main():
 
     # Crear adaptadores y casos de uso
     repo = JsonRepository(ruta)
-<<<<<<< Updated upstream
-    load_dotenv(BASE.parent / ".env")
-    
-=======
 
->>>>>>> Stashed changes
     if os.getenv("SMTP_USER") and os.getenv("SMTP_PASS"):
         mailer = SmtpMailer(
             os.getenv("SMTP_HOST", "smtp.gmail.com"),
@@ -42,6 +36,7 @@ def main():
         print("Sin credenciales SMTP: usando ConsolaMailer", flush=True)
 
     auth = AuthService(repo, mailer)
+
     # Traduce la acción del mensaje
     def manejar(msg: dict, sesion: dict) -> dict:
         accion = msg.get("action")
@@ -53,10 +48,11 @@ def main():
             return auth.verificar(msg.get("email", ""), msg.get("code", ""))
 
         if accion == "login":
-                resp = auth.login(msg.get("email", ""), msg.get("password", ""))
-                if resp["ok"]:
-                    sesion["email"] = resp["email"]
-                return resp
+            resp = auth.login(msg.get("email", ""), msg.get("password", ""))
+            if resp["ok"]:
+                sesion["email"] = resp["email"]
+            return resp
+
         if accion == "me":
             if "email" not in sesion:
                 return {"ok": False, "msg": "Debes iniciar sesión"}
@@ -69,7 +65,7 @@ def main():
             return auth.restablecer_password(
                 msg.get("email", ""), msg.get("code", ""), msg.get("new_password", "")
             )
-        # Aquí se van sumando: verify, login, me, forgot, reset
+
         return {"ok": False, "msg": "Acción desconocida"}
 
     # Arrancar

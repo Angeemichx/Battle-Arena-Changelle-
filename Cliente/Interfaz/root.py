@@ -444,14 +444,14 @@ class AppController:
                 if id_j is not None:
                     self.acciones_remotas[int(id_j)] = time.time() + 0.5
 
-    def enviar_movimiento_red(self, dx: int, dy: int) -> None:
+    def enviar_movimiento_red(self, x, y):
         """
         Descripcion:
             Envia al servidor TCP un paquete JSON con el vector de direccion (dx, dy)
             del jugador local.
         Entradas:
-            dx (int): Direccion horizontal (-1 izquierda, 0 quieto, 1 derecha).
-            dy (int): Direccion vertical (-1 arriba, 0 quieto, 1 abajo).
+            x (int): Coordenada horizontal.
+            y (int): Coordenada vertical.
         Salidas:
             None: Transmite el paquete por el socket si hay conexion activa.
         Restricciones:
@@ -460,7 +460,7 @@ class AppController:
         if self.socket_cliente is None:
             return
         try:
-            paquete = json.dumps({"tipo": "movimiento", "dx": int(dx), "dy": int(dy)}) + "\n"
+            paquete = json.dumps({"tipo": "movimiento", "x": int(x), "y": int(y)}) + "\n"
             self.socket_cliente.sendall(paquete.encode("utf-8"))
         except Exception:
             self.socket_cliente = None

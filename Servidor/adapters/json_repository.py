@@ -12,7 +12,10 @@ class JsonRepository:
         if not os.path.exists(self.path):
             return {}
         with open(self.path, encoding="utf-8") as f:
-            return json.load(f)
+            contenido = f.read().strip()
+        if not contenido:
+            return {}
+        return json.loads(contenido)
     #Guarda el diccionario y crea la carpeta en caso de que no exista
     def _save(self, data: dict):
         folder = os.path.dirname(self.path)

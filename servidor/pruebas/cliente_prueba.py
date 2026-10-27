@@ -29,7 +29,6 @@ def escuchar(sock, nombre):
     except Exception as e:
         print(f"[{nombre}] Error escuchando: {e}")
 
-
 def main():
     nombre = sys.argv[1] if len(sys.argv) > 1 else "Anonimo"
 
@@ -89,6 +88,11 @@ def main():
                         msg = {"action": "reset", "email": email,
                             "code": codigo, "new_password": nueva}
 
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+=======
+>>>>>>> develop
             if tecla in ("r", "v", "l"):
                 email = input("  Correo: ").strip()
                 if tecla == "r":
@@ -102,6 +106,7 @@ def main():
                 else:
                     clave = input("  Contraseña: ").strip()
                     msg = {"action": "login", "email": email, "password": clave}
+>>>>>>> f6d3519 (Resolucion de conflictos dentro del servidor)
 
             elif tecla in movimientos:
                 dx, dy = movimientos[tecla]

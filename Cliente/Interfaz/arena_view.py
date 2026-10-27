@@ -312,7 +312,7 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
                                 jugador_local["segundos_movimiento"] * 10
                                 + jugador_local["segundos_reactor"] * 40
                             )
-                        controller.enviar_movimiento_red(dx_unit, dy_unit)
+                        controller.enviar_movimiento_red(jugador_local["rect"].x, jugador_local["rect"].y)
             else:
                 controller.enviar_accion_red("[EXTRAYENDO]")
                 # Si mantiene presionado el 5to boton dentro de la zona del Reactor, suma 40 pts por cada segundo

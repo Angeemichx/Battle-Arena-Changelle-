@@ -5,6 +5,8 @@ services:
       dockerfile: Servidor/Dockerfile
     ports:
       - "5555:5555"
+    env_file:
+      - .env
     environment:
       DATA_FILE: /app/data/usuarios.json
     volumes:

@@ -105,9 +105,6 @@ class ServidorJuego:
                         del self.partida.jugadores[id_jugador]
                     self.sesiones.pop(id_jugador, None)
 
-                    self.sesiones.pop(id_jugador, None)
-
-
                 try:
                     socket_cliente.close()
 
@@ -134,6 +131,7 @@ class ServidorJuego:
 
         tipo = mensaje.get("tipo")
         accion = mensaje.get("action")
+        print(f"[DEBUG] jugador {id_jugador}: {mensaje}", flush=True)
 
         if tipo == "configurar_partida":
             minutos = mensaje.get("minutos", 5)
@@ -142,10 +140,14 @@ class ServidorJuego:
             self._broadcast(self.partida.estado_actual())
 
         elif tipo == "movimiento":
-            dx = mensaje.get("dx", 0)
-            dy = mensaje.get("dy", 0)
+            x = mensaje.get("x", 0)
+            y = mensaje.get("y", 0)
             with self.lock:
-                self.partida.mover_jugador(id_jugador, dx, dy)
+                if id_jugador in self.partida.jugadores:
+                    jugador = self.partida.jugadores[id_jugador]
+                    jugador.x = x
+                    jugador.y = y
+                    jugador.sumar_punto()
                 estado = self.partida.estado_actual()
             self._broadcast(estado)
 
@@ -157,8 +159,7 @@ class ServidorJuego:
                 "jugador": id_jugador,
                 "mensaje": mensaje.get("mensaje", "¡Acción!"),})
 
-	#Manejo de la autentificación
-
+        # Manejo de peticiones de cuentas (registro, verificacion, login, etc.)
         elif accion:
             sesion = self.sesiones.setdefault(id_jugador, {})
             with self.lock:

@@ -46,8 +46,18 @@ NUM_OPCIONES_MAPAS = 7  # 3 mapas + duracion + meta + modo de fin + congelamient
 
 
 def _siguiente_opcion(opciones: list, actual) -> object:
-    """Siguiente valor de la lista circular; si el actual no esta en la lista (p. ej. venia del
-    archivo guardado), empieza por el primero."""
+    """
+    Descripcion:
+        Obtiene el siguiente valor dentro de una lista circular; si el valor actual no
+        esta presente en la lista, retorna el primer elemento por defecto.
+    Entradas:
+        opciones (list): Lista de valores permitidos para ciclar.
+        actual (object): Valor actualmente configurado.
+    Salidas:
+        object: Siguiente elemento de la secuencia circular.
+    Restricciones:
+        opciones no debe ser una lista vacia.
+    """
     if actual in opciones:
         return opciones[(opciones.index(actual) + 1) % len(opciones)]
     return opciones[0]
@@ -1088,6 +1098,8 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
 
     controller.jugadores_sala = jugadores
     if accion_salida == "arena":
+        if getattr(controller, "es_creador", False):
+            controller.enviar_configuracion_partida_red()
         from Cliente.Interfaz.arena_view import iniciar_arena_pygame
         iniciar_arena_pygame(controller, screen=screen)
     elif accion_salida == "menu":

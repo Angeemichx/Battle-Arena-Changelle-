@@ -77,10 +77,11 @@ def _asegurar_pista_espacial_default(ruta_wav: Path) -> None:
 #     validar_color_disponible, cargar_config_local, guardar_config_local,
 #     _iniciar_subsistema_audio y actualizar_volumen_audio.
 #   - Metodos de red TCP: conectar_servidor_tcp, _escuchar_servidor, actualizar_estado_red,
-#     enviar_movimiento_red y enviar_accion_red.
+#     enviar_movimiento_red, enviar_accion_red y enviar_configuracion_partida_red.
 #   - Metodos de navegacion: ejecutar, _cerrar_ventana_actual, mostrar_login,
-#     mostrar_admin_login, mostrar_signup, mostrar_hub, mostrar_jugar, mostrar_perfil,
-#     mostrar_settings, volver_de_settings, entrar_al_lobby, iniciar_arena y cerrar_aplicacion.
+#     mostrar_admin_login, mostrar_signup, mostrar_recuperar_password, mostrar_hub,
+#     mostrar_jugar, mostrar_perfil, mostrar_settings, volver_de_settings, entrar_al_lobby,
+#     iniciar_arena y cerrar_aplicacion.
 # =============================================================================
 class AppController:
     def __init__(self, modo_estricto: bool = True):
@@ -443,14 +444,14 @@ class AppController:
                 if id_j is not None:
                     self.acciones_remotas[int(id_j)] = time.time() + 0.5
 
-    def enviar_movimiento_red(self, dx: int, dy: int) -> None:
+    def enviar_movimiento_red(self, x, y):
         """
         Descripcion:
             Envia al servidor TCP un paquete JSON con el vector de direccion (dx, dy)
             del jugador local.
         Entradas:
-            dx (int): Direccion horizontal (-1 izquierda, 0 quieto, 1 derecha).
-            dy (int): Direccion vertical (-1 arriba, 0 quieto, 1 abajo).
+            x (int): Coordenada horizontal.
+            y (int): Coordenada vertical.
         Salidas:
             None: Transmite el paquete por el socket si hay conexion activa.
         Restricciones:
@@ -459,7 +460,7 @@ class AppController:
         if self.socket_cliente is None:
             return
         try:
-            paquete = json.dumps({"tipo": "movimiento", "dx": int(dx), "dy": int(dy)}) + "\n"
+            paquete = json.dumps({"tipo": "movimiento", "x": int(x), "y": int(y)}) + "\n"
             self.socket_cliente.sendall(paquete.encode("utf-8"))
         except Exception:
             self.socket_cliente = None
@@ -480,6 +481,33 @@ class AppController:
             return
         try:
             paquete = json.dumps({"tipo": "accion", "mensaje": texto}) + "\n"
+            self.socket_cliente.sendall(paquete.encode("utf-8"))
+        except Exception:
+            self.socket_cliente = None
+
+    def enviar_configuracion_partida_red(self) -> None:
+        """
+        Descripcion:
+            Transmite al servidor TCP la configuracion establecida por el Creador (minutos,
+            meta de puntos, modo de fin y congelamiento) antes de arrancar la arena (US-08).
+        Entradas:
+            Ninguna.
+        Salidas:
+            None: Envia el paquete 'configurar_partida' si el socket esta activo.
+        Restricciones:
+            No bloquea la aplicacion si el socket se encuentra desconectado.
+        """
+        if self.socket_cliente is None:
+            return
+        try:
+            msg = {
+                "tipo": "configurar_partida",
+                "minutos": int(self.tiempo_partida_min),
+                "puntos": int(self.puntos_meta),
+                "modo": self.modo_fin,
+                "congelamiento": int(self.tiempo_congelado_seg),
+            }
+            paquete = json.dumps(msg) + "\n"
             self.socket_cliente.sendall(paquete.encode("utf-8"))
         except Exception:
             self.socket_cliente = None
@@ -569,6 +597,22 @@ class AppController:
         self._cerrar_ventana_actual()
         from Cliente.Interfaz.signup_view import SignupView
         self.ventana_actual = SignupView(self)
+        self.ventana_actual.mainloop()
+
+    def mostrar_recuperar_password(self) -> None:
+        """
+        Descripcion:
+            Cierra la vista actual y abre la ventana de Recuperacion de Contrasena (US-05).
+        Entradas:
+            Ninguna.
+        Salidas:
+            None: Inicia el mainloop de RecuperarPasswordView.
+        Restricciones:
+            Ninguna.
+        """
+        self._cerrar_ventana_actual()
+        from Cliente.Interfaz.recuperar_password_view import RecuperarPasswordView
+        self.ventana_actual = RecuperarPasswordView(self)
         self.ventana_actual.mainloop()
 
     def mostrar_hub(self) -> None:

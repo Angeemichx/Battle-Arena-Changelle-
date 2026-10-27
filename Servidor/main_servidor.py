@@ -1,24 +1,49 @@
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 from Servidor.adapters.json_repository import JsonRepository
 from Servidor.use_cases.auth_service import AuthService
 from Servidor.infraestructure.socket_server import ServidorJuego
-from Servidor.adapters.smtp_mailer import SmtpMailer
-from Servidor.adapters.consola_mailer import ConsolaMailer
+from Servidor.adapters.smtp_mailer import MailerConRespaldo, SmtpMailer
+
 BASE = Path(__file__).resolve().parent
 
+def crear_mailers():
+    mailers = []
+    for prefijo, host_def, port_def in (
+        ("SMTP", "smtp.gmail.com", "587"),        
+        ("SMTP2", "smtp-mail.outlook.com", "587")   
+    ):
+        user = os.getenv(f"{prefijo}_USER")
+        pwd = os.getenv(f"{prefijo}_PASS")
+        if user and pwd:
+            mailers.append(SmtpMailer(
+                os.getenv(f"{prefijo}_HOST", host_def),
+                int(os.getenv(f"{prefijo}_PORT", port_def)),
+                user,
+                pwd,
+            ))
+    return mailers
 
 def main():
+    load_dotenv(BASE.parent / ".env")
+
     # Variables
     ruta = os.getenv("DATA_FILE", str(BASE / "infraestructure" / "data" / "usuarios.json"))
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "5555"))
-
-    # Crear adaptadores y casos de uso
     repo = JsonRepository(ruta)
-    mailer = ConsolaMailer()
+    mailers = crear_mailers()
+
+    if not mailers:
+        raise SystemExit("Falta configurar SMTP_USER y SMTP_PASS en el .env")
+    mailer = mailers[0] if len(mailers) == 1 else MailerConRespaldo(mailers)
+    print(f"Remitentes configurados: {len(mailers)}", flush=True)
+
     auth = AuthService(repo, mailer)
+
     # Traduce la acción del mensaje
     def manejar(msg: dict, sesion: dict) -> dict:
         accion = msg.get("action")

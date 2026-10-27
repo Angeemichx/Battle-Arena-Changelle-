@@ -2,7 +2,10 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
+<<<<<<< Updated upstream
 
+=======
+>>>>>>> Stashed changes
 from Servidor.adapters.json_repository import JsonRepository
 from Servidor.use_cases.auth_service import AuthService
 from Servidor.infraestructure.socket_server import ServidorJuego
@@ -35,12 +38,32 @@ def main():
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "5555"))
     repo = JsonRepository(ruta)
+<<<<<<< HEAD
     mailers = crear_mailers()
 
     if not mailers:
         raise SystemExit("Falta configurar SMTP_USER y SMTP_PASS en el .env")
     mailer = mailers[0] if len(mailers) == 1 else MailerConRespaldo(mailers)
     print(f"Remitentes configurados: {len(mailers)}", flush=True)
+=======
+<<<<<<< Updated upstream
+    load_dotenv(BASE.parent / ".env")
+    
+=======
+
+>>>>>>> Stashed changes
+    if os.getenv("SMTP_USER") and os.getenv("SMTP_PASS"):
+        mailer = SmtpMailer(
+            os.getenv("SMTP_HOST", "smtp.gmail.com"),
+            int(os.getenv("SMTP_PORT", "465")),
+            os.getenv("SMTP_USER"),
+            os.getenv("SMTP_PASS"),
+        )
+        print("Mailer en uso: SmtpMailer", flush=True)
+    else:
+        mailer = ConsolaMailer()
+        print("Sin credenciales SMTP: usando ConsolaMailer", flush=True)
+>>>>>>> 5159595 (modificaciones del docker)
 
     auth = AuthService(repo, mailer)
 

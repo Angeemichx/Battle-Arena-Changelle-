@@ -55,11 +55,18 @@ def main():
             return auth.verificar(msg.get("email", ""), msg.get("code", ""))
 
         if accion == "login":
+<<<<<<< HEAD
             resp = auth.login(msg.get("email", ""), msg.get("password", ""))
             if resp["ok"]:
                 sesion["email"] = resp["email"]
             return resp
 
+=======
+                resp = auth.login(msg.get("email", ""), msg.get("password", ""))
+                if resp["ok"]:
+                    sesion["email"] = resp["email"]
+                return resp
+>>>>>>> f6d3519 (Resolucion de conflictos dentro del servidor)
         if accion == "me":
             if "email" not in sesion:
                 return {"ok": False, "msg": "Debes iniciar sesión"}
@@ -72,6 +79,7 @@ def main():
             return auth.restablecer_password(
                 msg.get("email", ""), msg.get("code", ""), msg.get("new_password", "")
             )
+<<<<<<< HEAD
         
         if accion == "request_code":
             return auth.solicitar_codigo_registro(msg.get("email", ""), msg.get("username", ""))
@@ -82,6 +90,9 @@ def main():
                 msg.get("password", ""), msg.get("code", ""),
             )
 
+=======
+        # Aquí se van sumando: verify, login, me, forgot, reset
+>>>>>>> f6d3519 (Resolucion de conflictos dentro del servidor)
         return {"ok": False, "msg": "Acción desconocida"}
 
     # Arrancar

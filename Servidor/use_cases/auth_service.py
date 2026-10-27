@@ -14,7 +14,11 @@ class AuthService:
     def __init__(self, repo, mailer):
         self.repo = repo
         self.mailer = mailer
+<<<<<<< HEAD
         self.pendientes = {} 
+=======
+
+>>>>>>> f6d3519 (Resolucion de conflictos dentro del servidor)
 
     def registrar(self, email: str, username: str, password: str) -> dict:
         email = email.strip().lower()

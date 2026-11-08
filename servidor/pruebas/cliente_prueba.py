@@ -89,10 +89,13 @@ def main():
                             "code": codigo, "new_password": nueva}
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 <<<<<<< HEAD
 =======
 >>>>>>> develop
+=======
+>>>>>>> 21200c4a732cb2d9738cb4a4af4ea750152d42e7
             if tecla in ("r", "v", "l"):
                 email = input("  Correo: ").strip()
                 if tecla == "r":
@@ -106,7 +109,6 @@ def main():
                 else:
                     clave = input("  Contraseña: ").strip()
                     msg = {"action": "login", "email": email, "password": clave}
->>>>>>> f6d3519 (Resolucion de conflictos dentro del servidor)
 
             elif tecla in movimientos:
                 dx, dy = movimientos[tecla]

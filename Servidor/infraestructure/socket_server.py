@@ -25,7 +25,7 @@ class ServidorJuego:
 
     def run(self):
         self.socket_servidor.bind((self.host, self.port))
-        self.socket_servidor.listen(2)
+        self.socket_servidor.listen(10)
         print(f"[SERVIDOR] Escuchando en {self.host}:{self.port}")
 
         #Agregar hilo para revisar el tiempo en cada segundo que transcurre
@@ -50,23 +50,10 @@ class ServidorJuego:
 
         try:
             #Asignar id para registrar al jugador
-
             with self.lock:
-                if len(self.clientes) >= 2:
-                    mensaje_error = {"tipo": "error", "mensaje": "Partida llena"}
-                    datos = (json.dumps(mensaje_error)+"\n").encode("utf-8")
-                    try:
-                        socket_cliente.sendall(datos)
-                    except Exception:
-                        pass
-                    return 
-                
                 id_jugador = self.siguiente_id
                 self.siguiente_id += 1
                 self.clientes[id_jugador] = socket_cliente
-
-                jugador = Jugador(id_jugador=id_jugador, nombre=f"Jugador{id_jugador}")
-                self.partida.agregar_jugador(jugador)
                 aceptado = True
 
             #Confirmar la conexión con el cliente 
@@ -131,7 +118,6 @@ class ServidorJuego:
 
         tipo = mensaje.get("tipo")
         accion = mensaje.get("action")
-        print(f"[DEBUG] jugador {id_jugador}: {mensaje}", flush=True)
 
         if tipo == "configurar_partida":
             minutos = mensaje.get("minutos", 5)
@@ -158,6 +144,26 @@ class ServidorJuego:
                 "tipo": "accion",
                 "jugador": id_jugador,
                 "mensaje": mensaje.get("mensaje", "¡Acción!"),})
+        
+        elif tipo == "identificar":
+            nombre = str(mensaje.get("nombre", "")).strip()[:20]
+            lleno = False
+            with self.lock:
+                if id_jugador not in self.partida.jugadores:
+                    if len(self.partida.jugadores) >= 2:
+                        lleno = True
+                    else:
+                        self.partida.agregar_jugador(
+                            Jugador(id_jugador=id_jugador, nombre=nombre or f"Jugador{id_jugador}")
+                        )
+                elif nombre:
+                    self.partida.jugadores[id_jugador].nombre = nombre
+                estado = self.partida.estado_actual()
+            if lleno:
+                self._enviar_a(self.clientes.get(id_jugador), {"tipo": "error", "mensaje": "Partida llena"})
+            else:
+                self._broadcast(estado)
+
 
         # Manejo de peticiones de cuentas (registro, verificacion, login, etc.)
         elif accion:

@@ -384,6 +384,11 @@ class AppController:
             sock.connect((target_host, int(target_port)))
             sock.settimeout(None)
             self.socket_cliente = sock
+
+            nombre = str(getattr(self, "usuario_actual", "") or "")
+            if nombre and nombre != "Piloto":
+                sock.sendall((json.dumps({"tipo": "identificar", "nombre": nombre}) + "\n").encode("utf-8"))
+
             hilo = threading.Thread(target=self._escuchar_servidor, daemon=True)
             hilo.start()
             return True

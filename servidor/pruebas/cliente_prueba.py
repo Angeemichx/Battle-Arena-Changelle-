@@ -88,14 +88,6 @@ def main():
                         msg = {"action": "reset", "email": email,
                             "code": codigo, "new_password": nueva}
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-=======
->>>>>>> develop
-=======
->>>>>>> 21200c4a732cb2d9738cb4a4af4ea750152d42e7
             if tecla in ("r", "v", "l"):
                 email = input("  Correo: ").strip()
                 if tecla == "r":

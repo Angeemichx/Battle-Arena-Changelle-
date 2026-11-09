@@ -11,6 +11,7 @@ import re
 import socket
 from pathlib import Path
 from types import SimpleNamespace
+from descubrimiento import obtener_servidor
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -40,11 +41,11 @@ def _cargar_env_local() -> None:
             pass
 def _pedir(action: str, timeout: float = 15, **datos) -> dict:
     """Abre una conexión corta al servidor, envía una acción y devuelve su respuesta."""
-    print("[DEBUG] SERVER_HOST:", repr(os.getenv("SERVER_HOST")))
-    print("[DEBUG] SERVER_PORT:", repr(os.getenv("SERVER_PORT")))
-    host = os.getenv("SERVER_HOST", "127.0.0.1")
-    port = int(os.getenv("SERVER_PORT", "5555"))
-    print(f"[DEBUG] Conectando a {host}:{port}")
+    try:
+        host, port = obtener_servidor()
+        print(f"[CLIENTE AUTH] Servidor encontrado: {host}:{port}")
+    except ConnectionError as error:
+        return {"ok": False, "msg": str(error)}
     try:
         print(f"[CLIENTE AUTH] Intentando conectar a {host}:{port}")
         sock = socket.create_connection((host, port), timeout=5)

@@ -15,6 +15,7 @@ from pathlib import Path
 import pygame
 
 from Cliente.Interfaz.Components.ui_helpers import COLORES_AVATAR
+from descubrimiento import obtener_servidor
 
 CONFIG_PATH = Path(__file__).resolve().parent.parent / "Recursos" / "config_local.json"
 AUDIO_DEFAULT_PATH = Path(__file__).resolve().parent.parent / "Recursos" / "ambiente_espacial.wav"
@@ -118,7 +119,7 @@ class AppController:
         self._cargar_configuracion_partida()
 
         # 2. Parametros y Puente de Red TCP
-        self.ip_servidor = self._obtener_ip_local()
+        self.ip_servidor = None
         self.puerto_servidor = 5555
         self.socket_cliente: socket.socket | None = None
         self.id_jugador_red: int | None = None
@@ -376,8 +377,21 @@ class AppController:
         """
         if self.socket_cliente is not None:
             return True
-        target_host = host or self.ip_servidor
-        target_port = port or self.puerto_servidor
+        try:
+            if host is not None:
+                target_host = host
+                target_port = port or self.puerto_servidor
+            else:
+                target_host, puerto_descubierto = obtener_servidor()
+                target_port = port or puerto_descubierto
+
+            self.ip_servidor = target_host
+            self.puerto_servidor = target_port
+
+        except ConnectionError as error:
+            print(f"[RED] {error}")
+            return False
+        
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(0.6)

@@ -40,8 +40,11 @@ def _cargar_env_local() -> None:
             pass
 def _pedir(action: str, timeout: float = 15, **datos) -> dict:
     """Abre una conexión corta al servidor, envía una acción y devuelve su respuesta."""
+    print("[DEBUG] SERVER_HOST:", repr(os.getenv("SERVER_HOST")))
+    print("[DEBUG] SERVER_PORT:", repr(os.getenv("SERVER_PORT")))
     host = os.getenv("SERVER_HOST", "127.0.0.1")
     port = int(os.getenv("SERVER_PORT", "5555"))
+    print(f"[DEBUG] Conectando a {host}:{port}")
     try:
         print(f"[CLIENTE AUTH] Intentando conectar a {host}:{port}")
         sock = socket.create_connection((host, port), timeout=5)

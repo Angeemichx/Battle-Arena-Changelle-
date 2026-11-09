@@ -383,7 +383,14 @@ class AppController:
             sock.settimeout(0.6)
             sock.connect((target_host, int(target_port)))
             sock.settimeout(None)
+            # Sin retardo de Nagle: los mensajes de movimiento son pequenos y frecuentes
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             self.socket_cliente = sock
+
+            nombre = str(getattr(self, "usuario_actual", "") or "")
+            if nombre and nombre != "Piloto":
+                sock.sendall((json.dumps({"tipo": "identificar", "nombre": nombre}) + "\n").encode("utf-8"))
+
             hilo = threading.Thread(target=self._escuchar_servidor, daemon=True)
             hilo.start()
             return True
@@ -444,7 +451,7 @@ class AppController:
                 if id_j is not None:
                     self.acciones_remotas[int(id_j)] = time.time() + 0.5
 
-    def enviar_movimiento_red(self, x, y):
+    def enviar_movimiento_red(self, x, y, puntaje=None, color=None):
         """
         Descripcion:
             Envia al servidor TCP un paquete JSON con el vector de direccion (dx, dy)
@@ -452,6 +459,8 @@ class AppController:
         Entradas:
             x (int): Coordenada horizontal.
             y (int): Coordenada vertical.
+            puntaje (int | None): Puntaje actual del jugador local (si se omite, el servidor suma 1).
+            color (str | None): Color hexadecimal del avatar, para que los demas lo dibujen igual.
         Salidas:
             None: Transmite el paquete por el socket si hay conexion activa.
         Restricciones:
@@ -460,12 +469,17 @@ class AppController:
         if self.socket_cliente is None:
             return
         try:
-            paquete = json.dumps({"tipo": "movimiento", "x": int(x), "y": int(y)}) + "\n"
+            msg = {"tipo": "movimiento", "x": int(x), "y": int(y)}
+            if puntaje is not None:
+                msg["puntaje"] = int(puntaje)
+            if color:
+                msg["color"] = str(color)
+            paquete = json.dumps(msg) + "\n"
             self.socket_cliente.sendall(paquete.encode("utf-8"))
         except Exception:
             self.socket_cliente = None
 
-    def enviar_accion_red(self, texto: str = "[EXTRAYENDO]") -> None:
+    def enviar_accion_red(self, texto: str = "[EXTRAYENDO]", puntaje=None) -> None:
         """
         Descripcion:
             Envia al servidor TCP una notificacion de que el jugador local esta presionando
@@ -480,7 +494,10 @@ class AppController:
         if self.socket_cliente is None:
             return
         try:
-            paquete = json.dumps({"tipo": "accion", "mensaje": texto}) + "\n"
+            msg = {"tipo": "accion", "mensaje": texto}
+            if puntaje is not None:
+                msg["puntaje"] = int(puntaje)
+            paquete = json.dumps(msg) + "\n"
             self.socket_cliente.sendall(paquete.encode("utf-8"))
         except Exception:
             self.socket_cliente = None

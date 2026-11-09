@@ -185,6 +185,17 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
             "direccion": "down",
         })
 
+    # Punto de salida segun el orden de llegada al servidor: asi todos los clientes colocan
+    # a cada jugador en el mismo lugar (si aun no hay identificacion se conservan los de arriba)
+    from Cliente.Interfaz.red_sync import aplicar_estado_remoto, asignar_spawns
+    with controller.estado_red_lock:
+        estado_inicial = list((getattr(controller, "estado_partida_red", None) or {}).get("jugadores", []))
+    spawns = asignar_spawns(estado_inicial, getattr(controller, "id_jugador_red", None))
+    if spawns:
+        for jug_s, idx_s in zip([j for j in jugadores if j["es_local"]] + [j for j in jugadores if not j["es_local"]], spawns):
+            spx, spy = SPAWN_POINTS.get(idx_s, (1800, 260))
+            jug_s["rect"].center = (spx, spy)
+
     # Verificacion de seguridad: garantizar que no se repitan colores entre jugadores (CA-10.3)
     from Cliente.Interfaz.Components.ui_helpers import COLORES_AVATAR
     colores_asignados = set()
@@ -312,9 +323,12 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
                                 jugador_local["segundos_movimiento"] * 10
                                 + jugador_local["segundos_reactor"] * 40
                             )
-                        controller.enviar_movimiento_red(jugador_local["rect"].x, jugador_local["rect"].y)
+                        controller.enviar_movimiento_red(
+                            jugador_local["rect"].x, jugador_local["rect"].y,
+                            jugador_local["puntos"], jugador_local["color"],
+                        )
             else:
-                controller.enviar_accion_red("[EXTRAYENDO]")
+                controller.enviar_accion_red("[EXTRAYENDO]", jugador_local["puntos"])
                 # Si mantiene presionado el 5to boton dentro de la zona del Reactor, suma 40 pts por cada segundo
                 if esta_en_zona_extraccion(jugador_local["rect"]):
                     jugador_local["acum_reactor"] += dt
@@ -331,17 +345,15 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
                 import time
                 ahora = time.time()
                 with controller.estado_red_lock:
-                    remotos = controller.estado_partida_red.get("jugadores", [])
-                    for idx_r, datos_r in enumerate(remotos):
-                        if idx_r < len(jugadores) and not jugadores[idx_r]["es_local"]:
-                            jugadores[idx_r]["nombre"] = datos_r.get("nombre", jugadores[idx_r]["nombre"])
-                            jugadores[idx_r]["puntos"] = int(datos_r.get("puntaje", jugadores[idx_r]["puntos"]))
-                            rx_rem = datos_r.get("x")
-                            ry_rem = datos_r.get("y")
-                            if rx_rem is not None and ry_rem is not None and (rx_rem != 0 or ry_rem != 0):
-                                jugadores[idx_r]["rect"].topleft = (int(rx_rem), int(ry_rem))
-                            id_rem = int(datos_r.get("id", idx_r + 1))
-                            jugadores[idx_r]["extrayendo"] = controller.acciones_remotas.get(id_rem, 0) > ahora
+                    # Se identifica a cada jugador por su id (no por su posicion en la lista)
+                    aplicar_estado_remoto(
+                        jugadores,
+                        controller.estado_partida_red.get("jugadores", []),
+                        getattr(controller, "id_jugador_red", None),
+                        controller.acciones_remotas,
+                        ahora,
+                        controller.obtener_nombre_color,
+                    )
 
             # Evaluar Condicion de Victoria y Desempate Automatico (US-16 / CA-16.4)
             terminada, ganador, hubo_desempate, nuevo_t = evaluar_condicion_victoria(

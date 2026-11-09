@@ -25,9 +25,12 @@ steps:
   - script: python -m pytest Servidor/pruebas/prueba_auth.py -v
     displayName: Pruebas de autenticación (servidor)
 
+  - script: python -m pytest Servidor/pruebas/test_partida.py Servidor/pruebas/test_movimiento_red.py -v
+    displayName: Pruebas de partida y movimiento entre jugadores (servidor)
+
   - script: |
       python -m pip install pygame-ce
-      SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy python -m pytest Cliente/Inputs/Tests Cliente/Config/Tests -q
+      SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy python -m pytest Cliente/Inputs/Tests Cliente/Config/Tests Cliente/Interfaz/Tests/test_red_sync.py -q
     displayName: Pruebas unitarias del cliente (entrada y configuracion)
 
   - script: docker build -f Servidor/Dockerfile -t battle-arena-servidor:$(Build.BuildId) .

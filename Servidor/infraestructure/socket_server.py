@@ -77,6 +77,7 @@ class ServidorJuego:
                 while "\n" in buffer:
                     linea, buffer = buffer.split("\n", 1)
                     if linea.strip():
+                        print(f"[SERVIDOR] socket_server, mensaje recibido de {id_jugador}: {linea}")
                         self._procesar_mensaje(id_jugador, linea)
 
         except ConnectionResetError:

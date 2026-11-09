@@ -43,11 +43,13 @@ def _pedir(action: str, timeout: float = 15, **datos) -> dict:
     host = os.getenv("SERVER_HOST", "127.0.0.1")
     port = int(os.getenv("SERVER_PORT", "5555"))
     try:
+        print(f"[CLIENTE AUTH] Intentando conectar a {host}:{port}")
         sock = socket.create_connection((host, port), timeout=5)
     except OSError:
         return {"ok": False, "msg": f"No se pudo conectar al servidor ({host}:{port})."}
     try:
         sock.settimeout(timeout)
+        print(f"[CLIENTE AUTH] Enviando petición: {action}")
         sock.sendall((json.dumps({"action": action, **datos}) + "\n").encode("utf-8"))
         buf = ""
         while True:

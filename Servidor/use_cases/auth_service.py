@@ -14,6 +14,7 @@ class AuthService:
     def __init__(self, repo, mailer):
         self.repo = repo
         self.mailer = mailer
+        self.pendientes = {}
 
     def registrar(self, email: str, username: str, password: str) -> dict:
         email = email.strip().lower()

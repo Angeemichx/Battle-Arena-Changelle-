@@ -18,11 +18,10 @@ if errorlevel 1 (
 echo.
 echo [2/4] Cerrando descubrimientos anteriores...
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ruta = [regex]::Escape('%~dp0descubrimiento_servidor.py'); Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^python(w)?\.exe$' -and $_.CommandLine -match $ruta } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
-
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ruta = [regex]::Escape('%~dp0Servidor\descubrimiento_servidor.py'); Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^python(w)?\.exe$' -and $_.CommandLine -match $ruta } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
 echo.
 echo [3/4] Iniciando descubrimiento...
-start "Battle Arena - Descubrimiento" /min py -3 "%~dp0descubrimiento_servidor.py"
+start "Battle Arena - Descubrimiento" /min py -3 "%~dp0Servidor\descubrimiento_servidor.py"
 
 timeout /t 2 /nobreak >nul
 

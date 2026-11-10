@@ -15,7 +15,7 @@ from pathlib import Path
 import pygame
 
 from Cliente.Interfaz.Components.ui_helpers import COLORES_AVATAR
-from descubrimiento import obtener_servidor
+from Cliente.descubrimiento import obtener_servidor
 
 CONFIG_PATH = Path(__file__).resolve().parent.parent / "Recursos" / "config_local.json"
 AUDIO_DEFAULT_PATH = Path(__file__).resolve().parent.parent / "Recursos" / "ambiente_espacial.wav"

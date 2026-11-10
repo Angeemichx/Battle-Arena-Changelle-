@@ -11,7 +11,7 @@ import re
 import socket
 from pathlib import Path
 from types import SimpleNamespace
-from descubrimiento import obtener_servidor
+from Cliente.descubrimiento import obtener_servidor
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 

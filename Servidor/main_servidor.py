@@ -48,6 +48,12 @@ def main():
     def manejar(msg: dict, sesion: dict) -> dict:
         accion = msg.get("action")
 
+        if accion == "request_code":
+            return auth.solicitar_codigo_registro(msg.get("email", ""),msg.get("username", ""))
+
+        if accion == "register_confirm":
+            return auth.registrar_con_codigo(msg.get("email", ""),msg.get("username", ""),msg.get("password", ""),msg.get("code", ""))
+    
         if accion == "register":
             return auth.registrar(msg.get("email", ""), msg.get("username", ""), msg.get("password", ""))
 
@@ -59,6 +65,7 @@ def main():
                 if resp["ok"]:
                     sesion["email"] = resp["email"]
                 return resp
+        
         if accion == "me":
             if "email" not in sesion:
                 return {"ok": False, "msg": "Debes iniciar sesión"}

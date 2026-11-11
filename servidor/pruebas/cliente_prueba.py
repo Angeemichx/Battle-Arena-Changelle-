@@ -88,6 +88,23 @@ def main():
                         msg = {"action": "reset", "email": email,
                             "code": codigo, "new_password": nueva}
 
+<<<<<<< HEAD
+=======
+            if tecla in ("r", "v", "l"):
+                email = input("  Correo: ").strip()
+                if tecla == "r":
+                    usuario = input("  Usuario: ").strip()
+                    clave = input("  Contraseña: ").strip()
+                    msg = {"action": "register", "email": email,
+                           "username": usuario, "password": clave}
+                elif tecla == "v":
+                    codigo = input("  Código: ").strip()
+                    msg = {"action": "verify", "email": email, "code": codigo}
+                else:
+                    clave = input("  Contraseña: ").strip()
+                    msg = {"action": "login", "email": email, "password": clave}
+
+>>>>>>> Int4_auth_json
             elif tecla in movimientos:
                 dx, dy = movimientos[tecla]
                 msg = {"tipo": "movimiento", "dx": dx, "dy": dy}

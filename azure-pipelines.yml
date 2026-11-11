@@ -30,7 +30,7 @@ steps:
 
   - script: |
       python -m pip install pygame-ce
-      SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy python -m pytest Cliente/Inputs/Tests Cliente/Config/Tests Cliente/Interfaz/Tests/test_red_sync.py -q
+      SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy python -m pytest Cliente/Inputs/Tests Cliente/Config/Tests Cliente/Tests Cliente/Interfaz/Tests/test_red_sync.py Cliente/Interfaz/Tests/test_pasos.py -q
     displayName: Pruebas unitarias del cliente (entrada y configuracion)
 
   - script: docker build -f Servidor/Dockerfile -t battle-arena-servidor:$(Build.BuildId) .

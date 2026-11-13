@@ -70,16 +70,34 @@ class AuthService:
             cuenta_username = self._por_username(ident)
 
         c = cuenta_email or cuenta_username
-
-        if not c or not bcrypt.checkpw(
-            password.encode(), c.password_hash.encode()
-        ):
+        if not c or not c.password_hash or not bcrypt.checkpw(password.encode(), c.password_hash.encode()):
             return {"ok": False, "msg": "Credenciales incorrectas"}
 
         if not c.verified:
             return {"ok": False, "msg": "Debes verificar tu correo primero"}
 
         return {"ok": True,"msg": "Bienvenido", "email": c.email, "username": c.username}
+    
+    def login_oauth(self, proveedor: str, proveedor_id: str, email: str, nombre: str) -> dict:
+        if not email:
+            return {"ok": False, "msg": "Tu cuenta no tiene un correo verificado en el proveedor."}
+        email = email.strip().lower()
+        with self.repo.lock:
+            c = self.repo._email(email)
+            if c is None:
+                base = (nombre or email.split("@")[0])[:20]
+                username, n = base, 1
+                while self.repo.user_exists(username):
+                    n += 1
+                    username = f"{base}{n}"
+                c = Cuenta(email=email, username=username, password_hash="", verified=True,
+                           created_at=_ahora().isoformat(),
+                           proveedor=proveedor, proveedor_id=proveedor_id)
+            else:
+                c.verified = True
+                c.proveedor, c.proveedor_id = proveedor, proveedor_id
+            self.repo.save(c)
+        return {"ok": True, "msg": "Bienvenido", "email": c.email, "username": c.username}
 
 
     def _por_username(self, username: str):

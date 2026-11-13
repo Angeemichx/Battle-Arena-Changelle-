@@ -15,7 +15,7 @@ def _es_coordenada(valor) -> bool:
 #Servidor TCP para aceptar clientes y sincronizar su estado
 
 class ServidorJuego:
-    def __init__(self, host, port, manejar):
+    def __init__(self, host, port, manejar, fin_partida=None):
         self.host = host
         self.port = port
         self.manejar = manejar
@@ -28,6 +28,8 @@ class ServidorJuego:
         self._envio_lock = threading.Lock()
         self.partida = Partida(id_partida="partida_1", limite_puntos=50)
         self.siguiente_id = 1 
+        self.fin_partida = fin_partida
+        self._era_activa = False
 
     #Arrancar Servidor y quedarse escuchando conexiones
 
@@ -244,6 +246,21 @@ class ServidorJuego:
         while True:
             time.sleep(1) # Espera 1 segundo
             if self.partida.activa:
+                self._era_activa = True
                 self.partida.verificar_tiempo()
+                if not self.partida.activa and self._era_activa:
+                    self._era_activa = False
+                    self._cerrar_partida()
                 # Llamar al broadcast
-                self._broadcast_estado()
+                self._broadcast(self.partida.estado_actual())
+                
+    def _cerrar_partida(self):
+        if not self.on_fin_partida:
+            return
+        with self.lock:
+            jugadores = [{"nombre": j.nombre, "puntos": int(j.puntaje)}
+                         for j in self.partida.jugadores.values()]
+        try:
+            self.on_fin_partida(jugadores)
+        except Exception as e:
+            print(f"[STATS] Error guardando partida: {e}", flush=True)

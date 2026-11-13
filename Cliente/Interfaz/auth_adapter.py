@@ -318,3 +318,17 @@ class ClienteAuthAdapter:
             return {"ok": False, "msg": f"ACCESO RECHAZADO: La cuenta '{username}' ya esta conectada en otro ordenador."}
         return {"ok": True, "msg": "Inicio de sesion exitoso.",
                 "username": username, "email": resp.get("email", "")}
+    def obtener_ranking(self) -> dict:
+        return _pedir("ranking")
+
+    def obtener_historial(self, username: str) -> dict:
+        return _pedir("historial", username=username)
+    
+    def iniciar_oauth_github(self) -> dict:
+        return _pedir("oauth_start")
+
+    def consultar_oauth_github(self, device_code: str) -> dict:
+        resp = _pedir("oauth_poll", device_code=device_code)
+        if resp.get("ok") and not resp.get("username"):
+            return {"ok": False, "msg": "El servidor no devolvió el nombre de usuario."}
+        return resp

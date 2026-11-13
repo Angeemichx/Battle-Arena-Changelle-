@@ -15,7 +15,7 @@ from pathlib import Path
 import pygame
 
 from Cliente.Interfaz.Components.ui_helpers import COLORES_AVATAR
-from Cliente.descubrimiento import obtener_servidor
+from Cliente.descubrimiento import obtener_servidor, olvidar_servidor
 
 CONFIG_PATH = Path(__file__).resolve().parent.parent / "Recursos" / "config_local.json"
 AUDIO_DEFAULT_PATH = Path(__file__).resolve().parent.parent / "Recursos" / "ambiente_espacial.wav"
@@ -120,6 +120,7 @@ class AppController:
 
         # 2. Parametros y Puente de Red TCP
         self.ip_servidor = None
+        self.ip_servidor_manual = False  # True cuando el invitado escribio la IP a mano
         self.puerto_servidor = 5555
         self.socket_cliente: socket.socket | None = None
         self.id_jugador_red: int | None = None
@@ -381,6 +382,10 @@ class AppController:
             if host is not None:
                 target_host = host
                 target_port = port or self.puerto_servidor
+            elif self.ip_servidor and self.ip_servidor_manual:
+                # IP escrita por el invitado: se respeta en vez de buscar por la red
+                target_host = self.ip_servidor
+                target_port = port or self.puerto_servidor
             else:
                 target_host, puerto_descubierto = obtener_servidor()
                 target_port = port or puerto_descubierto
@@ -394,7 +399,7 @@ class AppController:
         
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(0.6)
+            sock.settimeout(3.0)  # por Radmin VPN la primera conexion puede tardar mas de 0.6 s
             sock.connect((target_host, int(target_port)))
             sock.settimeout(None)
             # Sin retardo de Nagle: los mensajes de movimiento son pequenos y frecuentes
@@ -410,6 +415,7 @@ class AppController:
             return True
         except Exception:
             self.socket_cliente = None
+            olvidar_servidor()  # si el servidor encontrado ya no responde, la proxima vez se vuelve a buscar
             return False
 
     def _escuchar_servidor(self) -> None:

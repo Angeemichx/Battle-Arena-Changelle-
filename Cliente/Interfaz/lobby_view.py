@@ -276,7 +276,12 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
         # Sincronizar jugadores conectados desde el servidor de red si existen
         if getattr(controller, "estado_partida_red", None):
             with controller.estado_red_lock:
-                remotos = controller.estado_partida_red.get("jugadores", [])
+                # Los demas jugadores se identifican por id (no por su posicion en la lista del servidor)
+                from Cliente.Interfaz.red_sync import otros_jugadores
+                remotos = [None] + otros_jugadores(
+                    controller.estado_partida_red.get("jugadores", []),
+                    getattr(controller, "id_jugador_red", None),
+                )
                 for idx_r, datos_r in enumerate(remotos):
                     if idx_r == 0:
                         continue

@@ -61,10 +61,14 @@ def main():
             return auth.verificar(msg.get("email", ""), msg.get("code", ""))
 
         if accion == "login":
-                resp = auth.login(msg.get("email", ""), msg.get("password", ""))
-                if resp["ok"]:
-                    sesion["email"] = resp["email"]
-                return resp
+            identificador = msg.get("identificador") or msg.get("email", "")
+            resp = auth.login(identificador, msg.get("password", ""))
+
+            if resp["ok"]:
+                sesion["email"] = resp["email"]
+
+            return resp
+
         
         if accion == "me":
             if "email" not in sesion:

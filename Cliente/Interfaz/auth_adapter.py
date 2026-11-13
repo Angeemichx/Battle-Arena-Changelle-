@@ -306,11 +306,14 @@ class ClienteAuthAdapter:
                 return {"ok": True, "msg": f"Acceso concedido como {nombre}.",
                         "username": nombre, "email": f"{nombre.replace(' ', '').lower()}@arena.local"}
 
-        resp = _pedir("login", email=ident, password=password)
+        resp = _pedir("login", identificador=ident, password=password)
         if not resp.get("ok"):
             return {"ok": False, "msg": f"ACCESO RECHAZADO: {resp.get('msg', 'Error de acceso.')}"}
-
-        username = resp.get("username", ident)
+        
+        username = resp.get("username")
+        if not username:
+                    return {"ok": False, "msg": "ACCESO RECHAZADO: Nombre de usuario incorrecto."}
+        
         if self.verificar_usuario_en_uso(username, controller):
             return {"ok": False, "msg": f"ACCESO RECHAZADO: La cuenta '{username}' ya esta conectada en otro ordenador."}
         return {"ok": True, "msg": "Inicio de sesion exitoso.",

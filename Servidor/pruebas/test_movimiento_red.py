@@ -109,11 +109,12 @@ def test_el_servidor_respeta_el_puntaje_del_cliente(servidor):
     assert b.jugador(a.id)["puntaje"] == 10  # no se infla con cada mensaje
 
 
-def test_sin_puntaje_se_mantiene_el_comportamiento_anterior(servidor):
+def test_moverse_no_suma_puntos(servidor):
     _, a, b = dos(servidor)
     for _ in range(3):
         a.enviar({"tipo": "movimiento", "x": 10, "y": 10})
-    assert esperar(lambda: b.jugador(a.id) and b.jugador(a.id)["puntaje"] == 3)
+    assert esperar(lambda: b.jugador(a.id) and b.jugador(a.id)["x"] == 10)
+    assert b.jugador(a.id)["puntaje"] == 0  # moverse no da puntos
 
 
 def test_puntaje_por_accion_en_el_reactor(servidor):
@@ -158,7 +159,7 @@ def test_puntaje_invalido_no_se_acepta_como_valor(servidor, puntaje):
     _, a, b = dos(servidor)
     a.enviar({"tipo": "movimiento", "x": 1, "y": 1, "puntaje": puntaje})
     assert esperar(lambda: b.jugador(a.id) and b.jugador(a.id)["x"] == 1)
-    assert b.jugador(a.id)["puntaje"] in (1,)  # cayo al comportamiento anterior: suma 1
+    assert b.jugador(a.id)["puntaje"] == 0  # un puntaje invalido se ignora y moverse no suma
 
 
 @pytest.mark.parametrize("color", ["rojo", "#12", "#GGGGGG", 5, "<script>"])

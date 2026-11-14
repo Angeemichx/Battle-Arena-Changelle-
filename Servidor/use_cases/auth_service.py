@@ -59,22 +59,40 @@ class AuthService:
             c.verified, c.verify_code, c.verify_expires = True, None, None
             self.repo.save(c)
         return {"ok": True, "msg": "Correo verificado"}
-
-    def _por_username(self, username: str):
-        with self.repo.lock:
-            for email, info in self.repo._load().items():
-                if str(info.get("username", "")).lower() == username.lower():
-                    return Cuenta(email=email, **info)
-        return None
-
+   
     def login(self, identificador: str, password: str) -> dict:
         ident = identificador.strip()
-        c = self.repo._email(ident.lower()) or self._por_username(ident)
-        if not c or not bcrypt.checkpw(password.encode(), c.password_hash.encode()):
+
+        cuenta_email = self.repo._email(ident.lower())
+        cuenta_username = None
+
+        if not cuenta_email:
+            cuenta_username = self._por_username(ident)
+
+        c = cuenta_email or cuenta_username
+
+        if not c or not bcrypt.checkpw(
+            password.encode(), c.password_hash.encode()
+        ):
             return {"ok": False, "msg": "Credenciales incorrectas"}
+
         if not c.verified:
             return {"ok": False, "msg": "Debes verificar tu correo primero"}
-        return {"ok": True, "msg": "Bienvenido", "email": c.email, "username": c.username}
+
+        return {"ok": True,"msg": "Bienvenido", "email": c.email, "username": c.username}
+
+
+    def _por_username(self, username: str):
+        username = username.strip().casefold()
+
+        with self.repo.lock:
+            for email, info in self.repo._load().items():
+                nombre_guardado = str(info.get("username", "")).strip().casefold()
+
+                if nombre_guardado == username:
+                    return Cuenta(email=email, **info)
+
+        return None
 
     def solicitar_codigo_registro(self, email: str, username: str) -> dict:
         email = email.strip().lower()
@@ -172,16 +190,6 @@ class AuthService:
             c.verified, c.verify_code, c.verify_expires = True, None, None
             self.repo.save(c)
         return {"ok": True, "msg": "Correo verificado"}
-
-    def login(self, email: str, password: str) -> dict:
-        email = email.strip().lower()
-        c = self.repo._email(email)
-        if not c or not bcrypt.checkpw(password.encode(), c.password_hash.encode()):
-            return {"ok": False, "msg": "Credenciales incorrectas"}
-        if not c.verified:
-            return {"ok": False, "msg": "Debes verificar tu correo primero"}
-        return {"ok": True, "msg": "Bienvenido", "email": email}
-
 
     @staticmethod
     def _password_valida(p: str) -> bool:

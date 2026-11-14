@@ -14,10 +14,10 @@ class Partida:
         self.tiempo_inicio = 0
         self.en_tiempo_extra = False
 
-    #Agregar un jugador solo si hay espacio (pueden haber maximo 2 en partida)
+    #Agregar un jugador solo si hay espacio (pueden haber maximo 4 en partida)
     def agregar_jugador (self, jugador:Jugador):
 
-        if len(self.jugadores) >=2:
+        if len(self.jugadores) >=4:
                     return False 
         
         self.jugadores[jugador.id_jugador] = jugador
@@ -34,10 +34,20 @@ class Partida:
                 return
           
           if id_jugador in self.jugadores:
-                self.jugadores[id_jugador].mover(dx, dy)
-                self.jugadores [id_jugador].sumar_punto()
-                self._verificar_ganador()
+                self.jugadores[id_jugador].mover(dx, dy) #Sprint 3: el jugador puede moverse, pero no suma puntos
 
+    #Procesar la extrancción de energía del reactor y suma los puntos corespondientes
+    def extraer_energia(self, id_jugador: int, puntos_ganados: int):
+        if not self.activa:
+            return False
+        
+        if id_jugador in self.jugadores:
+            self.jugadores[id_jugador].puntaje += puntos_ganados
+            print(f"[PARTIDA] Jugador {id_jugador} extrajo energía. Puntos: {self.jugadores[id_jugador].puntaje}")
+            self._verificar_ganador() # Verifica si llegó a los puntos necesarios y ganó
+            return True
+        return False
+    
     #Al alcanzar el limite de puntos el jugador gana 
     def _verificar_ganador (self):
         for jugador in self.jugadores.values():

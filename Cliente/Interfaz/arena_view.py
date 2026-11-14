@@ -5,7 +5,7 @@ Vista de la Arena de Batalla en Pygame (US-07, US-14, US-15, US-16, US-17).
 - Reactor Central en (1800, 1300) y 4 plataformas de Spawn (Norte, Sur, Oeste, Este).
 - Parametros configurables desde el Lobby (Tiempo de Partida y Meta de Puntos).
 - Sistema de puntuacion por segundos:
-  * Contador de segundos en movimiento: cada 1 segundo en movimiento multiplica por 10 (+10 pts/seg).
+  * Moverse NO otorga puntos.
   * Contador de segundos extrayendo en el Reactor: cada 1 segundo extrayendo suma 40 (+40 pts/seg).
 - Condicion de Victoria y Desempate Automatico (US-16 / CA-16.4: +2 minutos si hay empate en el 1er lugar).
 - Pantalla de Victoria (US-17) con avatar ganador, tabla de posiciones y retorno al Lobby con mando (Command.ACTION).
@@ -107,8 +107,7 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
     Descripcion:
         Ejecuta el bucle principal de la Arena de Batalla (mundo de 3600x2600 px) con
         seguimiento de camara (Camera Follow), colisiones contra muros y Reactor Central,
-        acumulacion de puntaje por segundo en movimiento (+10 pts/s) y extraccion en el
-        Reactor (+40 pts/s), y renderizado de la Pantalla de Victoria (US-17).
+        extraccion de puntaje en el Reactor (+40 pts/s; moverse no da puntos), y renderizado de la Pantalla de Victoria (US-17).
     Entradas:
         controller (AppController): Instancia del controlador maestro con parametros y red.
         screen (pygame.Surface | None): Superficie de ventana Pygame activa o None para crearla.
@@ -177,8 +176,6 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
             "color": j.get("color", "#E63946"),
             "es_local": j.get("es_local", idx == 0),
             "rect": rect_j,
-            "segundos_movimiento": 0,
-            "acum_mov": 0.0,
             "segundos_reactor": 0,
             "acum_reactor": 0.0,
             "puntos": 0,
@@ -292,7 +289,7 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
                 banner_desempate_timer = max(0.0, banner_desempate_timer - dt)
 
             # =====================================================================
-            # 1. ENTRADA DEL JUGADOR Y CONTADORES DE SEGUNDOS (MOV x10 / REACTOR x40)
+            # 1. ENTRADA DEL JUGADOR Y CONTADOR DE SEGUNDOS (REACTOR x40)
             # =====================================================================
             accion_activa = (Command.ACTION in comandos_actuales) and (not esperando_soltar_accion)
             jugador_local["extrayendo"] = accion_activa
@@ -317,16 +314,8 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
                             limites_mundo,
                             circulo_reactor=circulo_reactor_colision,
                         )
-                    # Si el jugador se desplazo efectivamente, contar el tiempo en movimiento
+                    # Moverse no da puntos: solo se informa la nueva posicion
                     if jugador_local["rect"].topleft != pos_previa:
-                        jugador_local["acum_mov"] += dt
-                        while jugador_local["acum_mov"] >= 1.0:
-                            jugador_local["acum_mov"] -= 1.0
-                            jugador_local["segundos_movimiento"] += 1
-                            jugador_local["puntos"] = (
-                                jugador_local["segundos_movimiento"] * 10
-                                + jugador_local["segundos_reactor"] * 40
-                            )
                         controller.enviar_movimiento_red(
                             jugador_local["rect"].x, jugador_local["rect"].y,
                             jugador_local["puntos"], jugador_local["color"],
@@ -339,10 +328,7 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
                     while jugador_local["acum_reactor"] >= 1.0:
                         jugador_local["acum_reactor"] -= 1.0
                         jugador_local["segundos_reactor"] += 1
-                        jugador_local["puntos"] = (
-                            jugador_local["segundos_movimiento"] * 10
-                            + jugador_local["segundos_reactor"] * 40
-                        )
+                        jugador_local["puntos"] = jugador_local["segundos_reactor"] * 40
 
             # Sincronizar posiciones/acciones de otros jugadores si el servidor TCP esta activo
             if getattr(controller, "estado_partida_red", None):
@@ -569,7 +555,6 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
 
         # Panel inferior izquierdo con el desglose en vivo de los segundos, puntos y meta
         font_guia = pygame.font.SysFont("Segoe UI", max(11, int(13 * sy)), bold=True)
-        seg_mov = jugador_local["segundos_movimiento"]
         seg_reac = jugador_local["segundos_reactor"]
         pts_tot = jugador_local["puntos"]
 
@@ -581,7 +566,6 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
             str_modalidad = f"Modalidad: Estandar ({tiempo_partida_min}m | {puntos_meta} pts)"
 
         texto_contador = (
-            f"Mov: {seg_mov}s (x10 = {seg_mov * 10} pts)  |  "
             f"Reactor: {seg_reac}s (x40 = {seg_reac * 40} pts)  |  "
             f"Total: {pts_tot} pts  |  "
             f"{str_modalidad}  |  "

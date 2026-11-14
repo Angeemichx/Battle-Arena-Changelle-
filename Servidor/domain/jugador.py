@@ -23,10 +23,6 @@ class Jugador:
         if 0<= nueva_y <= limite:
             self.y = nueva_y
 
-    def sumar_punto(self):
-        #En este parametro se sumara un punto por cada moviento 
-        self.puntaje +=1
-
     #convertir el jugador en un diccionario para poder enviarlo como JSON
     def to_dict(self):
         return {"id": self.id_jugador, 

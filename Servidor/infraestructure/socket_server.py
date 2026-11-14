@@ -148,7 +148,7 @@ class ServidorJuego:
                     if _es_coordenada(x) and _es_coordenada(y):
                         jugador.x = x
                         jugador.y = y
-                    self._aplicar_datos_cliente(jugador, mensaje, suma_si_falta=True)
+                    self._aplicar_datos_cliente(jugador, mensaje)
             self._broadcast_estado()
 
         #Acción que se debe modificar a una acción física más adelante
@@ -156,7 +156,7 @@ class ServidorJuego:
         elif tipo == "accion":
             with self.lock:
                 if id_jugador in self.partida.jugadores:
-                    self._aplicar_datos_cliente(self.partida.jugadores[id_jugador], mensaje, suma_si_falta=False)
+                    self._aplicar_datos_cliente(self.partida.jugadores[id_jugador], mensaje)
             if "puntaje" in mensaje:
                 # Los puntos ganados en el reactor tambien deben llegar a los demas jugadores
                 self._broadcast_estado()
@@ -193,13 +193,11 @@ class ServidorJuego:
 
     #Enviar mensaje a todos los clientes que estén conectados 
 
-    def _aplicar_datos_cliente(self, jugador, mensaje: dict, suma_si_falta: bool):
-        """Puntaje y color informados por el cliente. Sin puntaje valido, un movimiento suma 1 punto."""
+    def _aplicar_datos_cliente(self, jugador, mensaje: dict):
+        """Puntaje y color informados por el cliente. Moverse no suma puntos: sin puntaje valido se conserva el actual."""
         puntaje = mensaje.get("puntaje")
         if isinstance(puntaje, int) and not isinstance(puntaje, bool) and 0 <= puntaje <= 1_000_000:
             jugador.puntaje = puntaje
-        elif suma_si_falta:
-            jugador.sumar_punto()
         color = mensaje.get("color")
         if isinstance(color, str) and re.fullmatch(r"#[0-9A-Fa-f]{6}", color):
             jugador.color = color

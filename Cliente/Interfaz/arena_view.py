@@ -33,6 +33,14 @@ from Cliente.Interfaz.arena_collisions import (
 )
 from Cliente.Interfaz.pasos import pasos_de_movimiento
 from Cliente.Interfaz.Components.hud import dibujar_hud_arena, hex_to_rgb
+from Cliente.Interfaz.Components.obstaculos import (
+    actualizar_estados_puertas,
+    aplicar_efecto_visual_avatar,
+    detectar_trampa_activa,
+    dibujar_obstaculos_arena,
+    obtener_colisiones_obstaculos,
+    obtener_obstaculos_por_mapa,
+)
 from Cliente.Interfaz.Components.sprite_loader import (
     inicializar_sprites,
     obtener_frame_particula,
@@ -142,7 +150,8 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
 
     muros_arena = obtener_muros_arena(controller.mapa_seleccionado)
     circulo_reactor_colision = (REACTOR_CENTER[0], REACTOR_CENTER[1], REACTOR_COLLISION_RADIUS)
-    obstaculos_totales = muros_arena
+    obstaculos_arena = obtener_obstaculos_por_mapa(getattr(controller, "mapa_seleccionado", "Estacion Estandar"))
+    obstaculos_totales = muros_arena + obtener_colisiones_obstaculos(obstaculos_arena)
 
     jugadores_base = getattr(controller, "jugadores_sala", None)
     if not jugadores_base or len(jugadores_base) < 2:
@@ -287,6 +296,20 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
                 tiempo_restante = max(0.0, tiempo_restante - dt)
             if banner_desempate_timer > 0.0:
                 banner_desempate_timer = max(0.0, banner_desempate_timer - dt)
+
+            # Actualizar puertas dinamicas y obstaculos solidos (US-20)
+            actualizar_estados_puertas(obstaculos_arena.get("puertas", []), ahora)
+            obstaculos_totales = muros_arena + obtener_colisiones_obstaculos(obstaculos_arena)
+
+            # Deteccion de trampas activas sobre el avatar local (US-20, CA-20.5)
+            trampa_local = detectar_trampa_activa(jugador_local["rect"], obstaculos_arena.get("trampas", []))
+            jugador_local["trampa_activa"] = trampa_local
+            if trampa_local == "jaula":
+                velocidad_jugador = 0.0
+            elif trampa_local == "charco":
+                velocidad_jugador = 3.5
+            else:
+                velocidad_jugador = 7.0
 
             # =====================================================================
             # 1. ENTRADA DEL JUGADOR Y CONTADOR DE SEGUNDOS (REACTOR x40)
@@ -455,6 +478,9 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
                 pygame.draw.rect(world_surface, (52, 60, 78), muro)
                 pygame.draw.rect(world_surface, (88, 100, 126), muro, 2)
 
+        # D.1 Obstaculos de la Arena: Barreras, Puertas y 3 Trampas (US-20, CA-20.1, CA-20.4)
+        dibujar_obstaculos_arena(world_surface, obstaculos_arena, ahora)
+
         # E. Jugadores (Trajes Hazmat) y Particulas de Extraccion Animadas (US-14)
         for jug in jugadores:
             j_rect = jug["rect"]
@@ -496,6 +522,16 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
                     direccion=dir_jug,
                     extrayendo=esta_extrayendo,
                     size=(j_rect.width, j_rect.height),
+                )
+
+            # Efecto visual de trampa sobre el sprite del avatar (US-20, CA-20.5)
+            trampa_jug = jug.get("trampa_activa")
+            if sprite_char and trampa_jug:
+                sprite_char = aplicar_efecto_visual_avatar(
+                    sprite_char,
+                    (j_rect.width, j_rect.height),
+                    trampa_jug,
+                    ahora,
                 )
 
             if sprite_char:

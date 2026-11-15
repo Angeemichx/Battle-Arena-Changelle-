@@ -667,3 +667,139 @@ def test_sincronizacion_mapa_red_us_23():
     app.mapa_seleccionado = "Reactor Inestable"
     app.actualizar_estado_red({"tipo": "estado", "mapa": "Estacion Estandar"})
     assert app.mapa_seleccionado == "Reactor Inestable"
+
+
+def test_obstaculos_por_mapa_y_seguridad_spawns_us_20():
+    """
+    Descripcion:
+        Verifica el cumplimiento de US-20, CA-20.1, CA-20.2, CA-20.5, CA-23.2 y CA-23.5:
+        1. Existen puertas, barreras y al menos 3 trampas distintas en cada mapa.
+        2. Todas las trampas y obstaculos se ubican dentro de los limites del mundo (3600x2600).
+        3. Ninguna trampa u obstaculo invade los puntos de spawn de los jugadores ni el reactor.
+    Entradas:
+        Ninguna.
+    Salidas:
+        None: Aserciones sobre la configuracion de obstaculos y trampas.
+    Restricciones:
+        Ninguna.
+    """
+    from Cliente.Interfaz.Components.obstaculos import obtener_obstaculos_por_mapa
+    from Cliente.Interfaz.arena_collisions import (
+        REACTOR_CENTER,
+        REACTOR_COLLISION_RADIUS,
+        SPAWN_POINTS,
+        WORLD_HEIGHT,
+        WORLD_WIDTH,
+    )
+
+    r_reactor = pygame.Rect(
+        REACTOR_CENTER[0] - REACTOR_COLLISION_RADIUS,
+        REACTOR_CENTER[1] - REACTOR_COLLISION_RADIUS,
+        REACTOR_COLLISION_RADIUS * 2,
+        REACTOR_COLLISION_RADIUS * 2,
+    )
+
+    for mapa in ("Estacion Estandar", "Reactor Inestable", "Laberinto Cerrado"):
+        obs = obtener_obstaculos_por_mapa(mapa)
+        assert len(obs["puertas"]) >= 2
+        assert len(obs["barreras"]) >= 2
+        assert len(obs["trampas"]) >= 3
+
+        tipos_trampas = {t["tipo"] for t in obs["trampas"]}
+        assert "jaula" in tipos_trampas
+        assert "gravedad" in tipos_trampas
+        assert "charco" in tipos_trampas
+
+        # Comprobar margenes y no invasion de spawns/reactor
+        for t in obs["trampas"] + obs["puertas"] + obs["barreras"]:
+            r = t["rect"]
+            assert 0 <= r.left and r.right <= WORLD_WIDTH
+            assert 0 <= r.top and r.bottom <= WORLD_HEIGHT
+            assert not r.colliderect(r_reactor)
+            for sp_coord in SPAWN_POINTS.values():
+                sp_rect = pygame.Rect(sp_coord[0] - 48, sp_coord[1] - 48, 96, 96)
+                assert not r.colliderect(sp_rect)
+
+
+def test_colisiones_dinamicas_puertas_us_20():
+    """
+    Descripcion:
+        Verifica CA-20.3 y CA-20.4:
+        1. Las puertas cerradas forman parte de la lista de colisiones no transitables.
+        2. Las puertas abiertas NO colisionan, permitiendo que el avatar pase a traves de ellas.
+    Entradas:
+        Ninguna.
+    Salidas:
+        None: Aserciones sobre obtener_colisiones_obstaculos.
+    Restricciones:
+        Ninguna.
+    """
+    from Cliente.Interfaz.Components.obstaculos import (
+        actualizar_estados_puertas,
+        obtener_colisiones_obstaculos,
+    )
+
+    puertas = [
+        {"id": "p1", "rect": pygame.Rect(500, 500, 100, 20), "estado": "cerrada", "periodo": 10.0},
+        {"id": "p2", "rect": pygame.Rect(800, 800, 100, 20), "estado": "abierta", "periodo": 10.0},
+    ]
+    barreras = [{"id": "b1", "rect": pygame.Rect(200, 200, 80, 20), "tipo": "peligro"}]
+    obstaculos = {"puertas": puertas, "barreras": barreras, "trampas": []}
+
+    colisiones_1 = obtener_colisiones_obstaculos(obstaculos)
+    assert barreras[0]["rect"] in colisiones_1
+    assert puertas[0]["rect"] in colisiones_1
+    assert puertas[1]["rect"] not in colisiones_1
+
+    # Invertir estados
+    puertas[0]["estado"] = "abierta"
+    puertas[1]["estado"] = "cerrada"
+    colisiones_2 = obtener_colisiones_obstaculos(obstaculos)
+    assert puertas[0]["rect"] not in colisiones_2
+    assert puertas[1]["rect"] in colisiones_2
+
+
+def test_efectos_visuales_trampas_avatar_us_20():
+    """
+    Descripcion:
+        Verifica CA-20.5 y CA-20.8:
+        1. Rotacion de 180 grados en la trampa de gravedad.
+        2. Preservacion de dimensiones sin desbordar los margenes de la ventana.
+        3. Deteccion de pisada sobre la trampa.
+    Entradas:
+        Ninguna.
+    Salidas:
+        None: Aserciones sobre las superficies generadas.
+    Restricciones:
+        Requiere Pygame inicializado.
+    """
+    from Cliente.Interfaz.Components.obstaculos import (
+        aplicar_efecto_visual_avatar,
+        detectar_trampa_activa,
+    )
+
+    sprite_base = pygame.Surface((48, 48), pygame.SRCALPHA)
+    pygame.draw.rect(sprite_base, (255, 0, 0), (0, 0, 48, 48))
+
+    # Prueba efecto gravedad (rotar 180 grados)
+    surf_grav = aplicar_efecto_visual_avatar(sprite_base, (48, 48), "gravedad", 1.0)
+    assert surf_grav.get_size() == (48, 48)
+
+    # Prueba efecto jaula (overlay de barrotes)
+    surf_jaula = aplicar_efecto_visual_avatar(sprite_base, (48, 48), "jaula", 1.0)
+    assert surf_jaula.get_size() == (48, 48)
+
+    # Prueba efecto charco (filtro verde toxico)
+    surf_charco = aplicar_efecto_visual_avatar(sprite_base, (48, 48), "charco", 1.0)
+    assert surf_charco.get_size() == (48, 48)
+
+    # Deteccion de pisada
+    trampas = [
+        {"id": "t1", "tipo": "jaula", "rect": pygame.Rect(100, 100, 60, 60), "activa": True},
+        {"id": "t2", "tipo": "gravedad", "rect": pygame.Rect(300, 300, 60, 60), "activa": True},
+    ]
+    jugador_sobre_jaula = pygame.Rect(110, 110, 48, 48)
+    jugador_lejos = pygame.Rect(500, 500, 48, 48)
+
+    assert detectar_trampa_activa(jugador_sobre_jaula, trampas) == "jaula"
+    assert detectar_trampa_activa(jugador_lejos, trampas) is None

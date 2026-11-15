@@ -5,6 +5,7 @@ Sin botones flotantes en la barra superior: toda la interaccion se realiza
 caminando con el mando hacia las zonas del Lobby.
 """
 from __future__ import annotations
+import time
 import pygame
 
 
@@ -114,6 +115,11 @@ def dibujar_hud_arena(
     muros_mundo: list[pygame.Rect],
     reactor_center: tuple[int, int],
     avatar_img_surface: pygame.Surface | None = None,
+    en_tiempo_extra: bool = False,
+    estado_reactor: str = "disponible",
+    guardianes: list[dict] | None = None,
+    toasts: list[dict] | None = None,
+    evento_especial: dict | None = None,
 ) -> dict[str, pygame.Rect]:
     """
     Descripcion:
@@ -187,9 +193,39 @@ def dibujar_hud_arena(
         surf_reloj,
         (
             timer_rect.centerx - surf_reloj.get_width() // 2,
-            timer_rect.centery - surf_reloj.get_height() // 2,
+            timer_rect.centery - surf_reloj.get_height() // 2 - int(4 * sy),
         ),
     )
+
+    # Insignia de Estado de Partida (CA-24.2: En Curso vs Tiempo Extra)
+    badge_w = int(120 * sx)
+    badge_h = int(16 * sy)
+    badge_rect = pygame.Rect(timer_rect.centerx - badge_w // 2, timer_rect.bottom - int(12 * sy), badge_w, badge_h)
+    if en_tiempo_extra:
+        pygame.draw.rect(surface, (230, 180, 30), badge_rect, border_radius=4)
+        txt_estado = "!TIEMPO EXTRA!"
+        col_txt = (20, 20, 20)
+    else:
+        pygame.draw.rect(surface, (42, 157, 143), badge_rect, border_radius=4)
+        txt_estado = "EN CURSO"
+        col_txt = (255, 255, 255)
+    surf_est = font_small.render(txt_estado, True, col_txt)
+    surface.blit(surf_est, (badge_rect.centerx - surf_est.get_width() // 2, badge_rect.centery - surf_est.get_height() // 2))
+
+    # Indicador de Estado del Reactor en el HUD (CA-24.3)
+    reac_w = int(190 * sx)
+    reac_h = int(22 * sy)
+    reac_rect = pygame.Rect(timer_rect.centerx - reac_w // 2, timer_rect.bottom + int(10 * sy), reac_w, reac_h)
+    pygame.draw.rect(surface, (20, 24, 34), reac_rect, border_radius=5)
+    if estado_reactor == "disponible":
+        col_reac = (0, 220, 180)
+        txt_reac = "REACTOR: DISPONIBLE"
+    else:
+        col_reac = (231, 76, 60)
+        txt_reac = "REACTOR: SOBRECARGADO"
+    pygame.draw.rect(surface, col_reac, reac_rect, 1, border_radius=5)
+    surf_tr = font_small.render(txt_reac, True, col_reac)
+    surface.blit(surf_tr, (reac_rect.centerx - surf_tr.get_width() // 2, reac_rect.centery - surf_tr.get_height() // 2))
 
     # 3. Derecha Superior: Tarjetas Compactas de Jugadores y Puntajes
     card_w = max(175, int(210 * sx))
@@ -241,5 +277,42 @@ def dibujar_hud_arena(
         jx = radar_rect.x + int(r_rect.centerx * rx_scale)
         jy = radar_rect.y + int(r_rect.centery * ry_scale)
         pygame.draw.circle(surface, hex_to_rgb(jug["color"]), (jx, jy), max(3, int(5 * sy)))
+
+    # Guardianes de Saymon proyectados en el radar como puntos rojos (CA-24.1)
+    if guardianes:
+        for g in guardianes:
+            gx = radar_rect.x + int(g.get("x", 0) * rx_scale)
+            gy = radar_rect.y + int(g.get("y", 0) * ry_scale)
+            if radar_rect.collidepoint(gx, gy):
+                pygame.draw.circle(surface, (230, 57, 70), (gx, gy), max(3, int(4 * sy)))
+                pygame.draw.circle(surface, (255, 120, 120), (gx, gy), max(4, int(5 * sy)), 1)
+
+    # 5. Banner de Evento Especial Activo (US-22 / CA-24.3)
+    if evento_especial and evento_especial.get("activo"):
+        ev_w = max(280, int(360 * sx))
+        ev_h = max(34, int(40 * sy))
+        ev_rect = pygame.Rect(w // 2 - ev_w // 2, reac_rect.bottom + int(8 * sy), ev_w, ev_h)
+        pygame.draw.rect(surface, (45, 20, 60), ev_rect, border_radius=6)
+        pygame.draw.rect(surface, (247, 37, 133), ev_rect, 2, border_radius=6)
+        txt_ev = f"!EVENTO: {evento_especial.get('nombre', 'SOBRECARGA RADIACTIVA').upper()}!"
+        surf_ev = font_bold.render(txt_ev, True, (255, 215, 0))
+        surface.blit(surf_ev, (ev_rect.centerx - surf_ev.get_width() // 2, ev_rect.centery - surf_ev.get_height() // 2))
+
+    # 6. Notificaciones Emergentes / Toasts en Pantalla (CA-24.6)
+    if toasts:
+        t_ahora = time.time()
+        toasts_visibles = [t for t in toasts if t.get("expira", 0) > t_ahora]
+        if toasts_visibles:
+            ultimo = toasts_visibles[-1]
+            t_box_w = max(260, int(340 * sx))
+            t_box_h = max(32, int(38 * sy))
+            t_rect = pygame.Rect(w // 2 - t_box_w // 2, h - t_box_h - int(18 * sy), t_box_w, t_box_h)
+            toast_surf = pygame.Surface((t_box_w, t_box_h), pygame.SRCALPHA)
+            toast_surf.fill((18, 22, 32, 225))
+            surface.blit(toast_surf, t_rect)
+            col_borde = (230, 57, 70) if ultimo.get("tipo") == "alerta" else (233, 196, 106)
+            pygame.draw.rect(surface, col_borde, t_rect, 2, border_radius=6)
+            lbl_toast = font_bold.render(ultimo.get("mensaje", ""), True, (255, 255, 255))
+            surface.blit(lbl_toast, (t_rect.centerx - lbl_toast.get_width() // 2, t_rect.centery - lbl_toast.get_height() // 2))
 
     return {}

@@ -803,3 +803,96 @@ def test_efectos_visuales_trampas_avatar_us_20():
 
     assert detectar_trampa_activa(jugador_sobre_jaula, trampas) == "jaula"
     assert detectar_trampa_activa(jugador_lejos, trampas) is None
+
+
+def test_hud_arena_insignias_y_tiempo_extra_us_24():
+    """
+    Descripcion:
+        Verifica el cumplimiento de CA-24.2, CA-24.3 y el DoD de US-24:
+        1. Renderizado de tiempo normal ('EN CURSO') vs 'TIEMPO EXTRA'.
+        2. Renderizado de estado del reactor ('disponible' vs 'sobrecargado').
+        3. Proyeccion de guardianes de Saymon en el radar.
+        4. Renderizado de banners de eventos especiales y toasts de rechazo.
+    Entradas:
+        Ninguna.
+    Salidas:
+        None: Aserciones sobre la ejecucion limpia sin excepciones.
+    Restricciones:
+        Requiere inicializacion de Pygame.
+    """
+    import time
+    from Cliente.Interfaz.Components.hud import dibujar_hud_arena
+    from Cliente.Interfaz.root import AppController
+
+    app = AppController()
+    screen = pygame.Surface((1280, 720))
+    jugadores = [
+        {"id": 1, "nombre": "Piloto_1", "color": "#E63946", "rect": pygame.Rect(1800, 1000, 48, 48), "puntos": 120, "es_local": True},
+        {"id": 2, "nombre": "Piloto_2", "color": "#1D3557", "rect": pygame.Rect(1800, 1600, 48, 48), "puntos": 120, "es_local": False},
+    ]
+    muros = [pygame.Rect(0, 0, 3600, 50)]
+    guardianes = [
+        {"id": 1, "x": 1200, "y": 1000},
+        {"id": 2, "x": 2400, "y": 1500},
+    ]
+    toasts = [
+        {"mensaje": "FUERA DE RANGO DEL REACTOR", "expira": time.time() + 10.0, "tipo": "advertencia"},
+    ]
+    evento = {"activo": True, "nombre": "Sobrecarga x2"}
+
+    # Caso 1: En tiempo extra con reactor sobrecargado, guardianes y toasts
+    res1 = dibujar_hud_arena(
+        screen,
+        app,
+        jugadores,
+        tiempo_restante=20.0,
+        world_size=(3600, 2600),
+        muros_mundo=muros,
+        reactor_center=(1800, 1300),
+        en_tiempo_extra=True,
+        estado_reactor="sobrecargado",
+        guardianes=guardianes,
+        toasts=toasts,
+        evento_especial=evento,
+    )
+    assert isinstance(res1, dict)
+
+    # Caso 2: En curso normal con reactor disponible
+    res2 = dibujar_hud_arena(
+        screen,
+        app,
+        jugadores,
+        tiempo_restante=120.0,
+        world_size=(3600, 2600),
+        muros_mundo=muros,
+        reactor_center=(1800, 1300),
+        en_tiempo_extra=False,
+        estado_reactor="disponible",
+    )
+    assert isinstance(res2, dict)
+
+
+def test_dibujar_guardianes_mundo_us_24():
+    """
+    Descripcion:
+        Verifica CA-24.1: Los guardianes de Saymon se dibujan correctamente
+        en la superficie del mundo sin generar excepciones.
+    Entradas:
+        Ninguna.
+    Salidas:
+        None.
+    Restricciones:
+        Requiere Pygame inicializado.
+    """
+    from Cliente.Interfaz.arena_view import dibujar_guardianes_mundo
+
+    world = pygame.Surface((3600, 2600))
+    guardianes = [
+        {"id": 1, "x": 1000, "y": 1000},
+        {"id": 2, "x": 2000, "y": 1200},
+        {"id": 3, "x": 1500, "y": 2000},
+        {"id": 4, "x": 2500, "y": 1800},
+    ]
+    # Debe dibujar sin errores a tiempo t=0.0 y t=5.0
+    dibujar_guardianes_mundo(world, guardianes, ahora=0.0)
+    dibujar_guardianes_mundo(world, guardianes, ahora=5.0)

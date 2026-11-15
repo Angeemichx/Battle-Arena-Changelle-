@@ -11,7 +11,9 @@ Vista de la Arena de Batalla en Pygame (US-07, US-14, US-15, US-16, US-17).
 - Pantalla de Victoria (US-17) con avatar ganador, tabla de posiciones y retorno al Lobby con mando (Command.ACTION).
 """
 from __future__ import annotations
+import math
 import os
+import time
 import pygame
 
 from Cliente.Inputs.gamepad_manager import (
@@ -108,6 +110,38 @@ def evaluar_condicion_victoria(
         return False, None, True, nuevo_tiempo
 
     return True, lideres[0], False, tiempo_restante
+
+
+def dibujar_guardianes_mundo(surface: pygame.Surface, guardianes: list[dict], ahora: float) -> None:
+    """
+    Descripcion:
+        Renderiza en la superficie del mundo los guardianes de Saymon (US-21 / CA-24.1)
+        con cuerpo de dron centinela, animacion de flotacion y halo de escaneo.
+    Entradas:
+        surface (pygame.Surface): Superficie del mundo 3600x2600.
+        guardianes (list[dict]): Lista de posiciones {'id', 'x', 'y'}.
+        ahora (float): Tiempo para animar pulsos y flotacion.
+    Salidas:
+        None: Dibuja directamente sobre 'surface'.
+    """
+    for g in guardianes:
+        gx, gy = int(g["x"]), int(g["y"])
+        # Cono o rango de escaneo en el suelo
+        scan_surf = pygame.Surface((120, 120), pygame.SRCALPHA)
+        pulse = 0.5 + 0.5 * math.sin(ahora * 5.0)
+        radio_scan = int(48 + 8 * pulse)
+        pygame.draw.circle(scan_surf, (230, 57, 70, 40), (60, 60), radio_scan)
+        pygame.draw.circle(scan_surf, (255, 100, 100, 110), (60, 60), radio_scan, 1)
+        surface.blit(scan_surf, (gx - 60, gy - 60))
+
+        # Cuerpo del dron centinela con bobbing vertical
+        flotacion = int(math.sin(ahora * 4.0 + g.get("id", 0)) * 4)
+        centro_dron = (gx, gy + flotacion)
+        pygame.draw.circle(surface, (35, 42, 55), centro_dron, 18)
+        pygame.draw.circle(surface, (80, 95, 120), centro_dron, 18, 2)
+        # Ojo de vigilancia rojo
+        pygame.draw.circle(surface, (230, 57, 70), centro_dron, 7)
+        pygame.draw.circle(surface, (255, 200, 200), centro_dron, 3)
 
 
 def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> None:
@@ -241,6 +275,12 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
     font_nombre = pygame.font.SysFont("Segoe UI", 14, bold=True)
     font_accion = pygame.font.SysFont("Segoe UI", 13, bold=True)
     font_reactor = pygame.font.SysFont("Segoe UI", 16, bold=True)
+    font_tu = pygame.font.SysFont("Segoe UI", 12, bold=True)
+
+    # Estado de Alertas Toasts y Eventos Especiales (US-24)
+    toasts: list[dict] = []
+    estado_reactor = "disponible"
+    evento_especial: dict | None = None
 
     corriendo = True
     accion_salida = None  # "lobby" | "cerrar"
@@ -352,6 +392,10 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
                         jugador_local["acum_reactor"] -= 1.0
                         jugador_local["segundos_reactor"] += 1
                         jugador_local["puntos"] = jugador_local["segundos_reactor"] * 40
+                else:
+                    # Toast notorio de rechazo de accion fuera de rango (CA-24.6)
+                    if not any(t.get("mensaje") == "FUERA DE RANGO DEL REACTOR" and t.get("expira", 0) > ahora for t in toasts):
+                        toasts.append({"mensaje": "FUERA DE RANGO DEL REACTOR", "expira": ahora + 2.0, "tipo": "advertencia"})
 
             # Sincronizar posiciones/acciones de otros jugadores si el servidor TCP esta activo
             if getattr(controller, "estado_partida_red", None):
@@ -481,6 +525,21 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
         # D.1 Obstaculos de la Arena: Barreras, Puertas y 3 Trampas (US-20, CA-20.1, CA-20.4)
         dibujar_obstaculos_arena(world_surface, obstaculos_arena, ahora)
 
+        # D.2 Guardianes de Saymon (US-21 / CA-24.1): consumir o simular 4 centinelas base
+        with controller.estado_red_lock:
+            red_guardianes = getattr(controller, "estado_partida_red", {}).get("guardianes", None)
+        if red_guardianes:
+            guardianes_actuales = red_guardianes
+        else:
+            # Posicionamiento tactico de 4 centinelas base en patrullaje circular
+            guardianes_actuales = [
+                {"id": 1, "x": 1800 + math.cos(ahora * 0.35) * 750, "y": 1300 + math.sin(ahora * 0.35) * 550},
+                {"id": 2, "x": 1800 + math.cos(ahora * 0.35 + 1.57) * 750, "y": 1300 + math.sin(ahora * 0.35 + 1.57) * 550},
+                {"id": 3, "x": 1800 + math.cos(ahora * 0.35 + 3.14) * 750, "y": 1300 + math.sin(ahora * 0.35 + 3.14) * 550},
+                {"id": 4, "x": 1800 + math.cos(ahora * 0.35 + 4.71) * 750, "y": 1300 + math.sin(ahora * 0.35 + 4.71) * 550},
+            ]
+        dibujar_guardianes_mundo(world_surface, guardianes_actuales, ahora)
+
         # E. Jugadores (Trajes Hazmat) y Particulas de Extraccion Animadas (US-14)
         for jug in jugadores:
             j_rect = jug["rect"]
@@ -542,6 +601,20 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
             lbl_n = font_nombre.render(jug["nombre"], True, (255, 255, 255))
             world_surface.blit(lbl_n, (j_rect.centerx - lbl_n.get_width() // 2, j_rect.top - lbl_n.get_height() - 6))
 
+            # Distintivo claro para el jugador local: indicador 'TU' animado y halo base (CA-24.5)
+            if jug["es_local"]:
+                bounce_tu = int(math.sin(ahora * 6.0) * 3)
+                lbl_tu = font_tu.render("▲ TU", True, (76, 201, 240))
+                world_surface.blit(lbl_tu, (j_rect.centerx - lbl_tu.get_width() // 2, j_rect.top - lbl_n.get_height() - lbl_tu.get_height() - 8 + bounce_tu))
+                halo_surf = pygame.Surface((44, 12), pygame.SRCALPHA)
+                pygame.draw.ellipse(halo_surf, (76, 201, 240, 90), (0, 0, 44, 12), 2)
+                world_surface.blit(halo_surf, (j_rect.centerx - 22, j_rect.bottom - 4))
+
+            # Indicador de estado congelado / aturdido si aplica (CA-24.3)
+            if jug.get("congelado"):
+                lbl_cong = font_tu.render("* CONGELADO *", True, (130, 220, 255))
+                world_surface.blit(lbl_cong, (j_rect.centerx - lbl_cong.get_width() // 2, j_rect.bottom + 8))
+
         # =====================================================================
         # 3. CAMARA CON SEGUIMIENTO AL JUGADOR LOCAL (CAMERA FOLLOW - US-07)
         # =====================================================================
@@ -563,6 +636,11 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
         # =====================================================================
         # 4. HUD FIJO SOBRE LA CAMARA (TEMPORIZADOR, AVATAR Y MINI-RADAR)
         # =====================================================================
+        # Comprobar tiempo extra del servidor de Angelica
+        with controller.estado_red_lock:
+            es_extra_red = bool((getattr(controller, "estado_partida_red", None) or {}).get("tiempo_extra", False))
+        tiempo_extra_activo = es_extra_red or (banner_desempate_timer > 0.0)
+
         dibujar_hud_arena(
             screen,
             controller,
@@ -572,6 +650,11 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
             muros_arena,
             REACTOR_CENTER,
             avatar_img_surface,
+            en_tiempo_extra=tiempo_extra_activo,
+            estado_reactor=estado_reactor,
+            guardianes=guardianes_actuales,
+            toasts=toasts,
+            evento_especial=evento_especial,
         )
 
         # Banner de Desempate Automatico (+2 min - CA-16.4)

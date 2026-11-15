@@ -3,14 +3,15 @@ import time
 from Servidor.domain.partida import Partida
 from Servidor.domain.jugador import Jugador
 
-def test_mover_jugador_suma_punto():
+def test_mover_jugador_no_suma_puntos():
     partida = Partida(id_partida="test_1")
     jugador = Jugador(id_jugador=1, nombre="Test")
     partida.agregar_jugador(jugador)
     partida.iniciar_cronometro(5)
     
     partida.mover_jugador(1, 1, 0)
-    assert jugador.puntaje == 1
+    assert jugador.x == 1
+    assert jugador.puntaje == 0  # moverse no da puntos
 
 def test_detectar_empate():
     partida = Partida(id_partida="test_2")

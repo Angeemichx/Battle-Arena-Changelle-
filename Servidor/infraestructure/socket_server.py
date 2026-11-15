@@ -151,20 +151,38 @@ class ServidorJuego:
                     self._aplicar_datos_cliente(jugador, mensaje)
             self._broadcast_estado()
 
-        #Acción que se debe modificar a una acción física más adelante
+        #Acción para validar que el jugador está en la zona del reactor
 
         elif tipo == "accion":
+            exito_extraccion = False
             with self.lock:
                 if id_jugador in self.partida.jugadores:
-                    self._aplicar_datos_cliente(self.partida.jugadores[id_jugador], mensaje)
-            if "puntaje" in mensaje:
-                # Los puntos ganados en el reactor tambien deben llegar a los demas jugadores
-                self._broadcast_estado()
-            self._broadcast({
-                "tipo": "accion",
-                "jugador": id_jugador,
-                "mensaje": mensaje.get("mensaje", "¡Acción!"),})
-        
+                    jugador = self.partida.jugadores[id_jugador]
+                    dx = jugador.x - 1800
+                    dy = jugador.y - 1300
+                    distancia = (dx ** 2 + dy ** 2) ** 0.5
+
+                    if distancia <= 210:
+                        # El jugador está dentro del área del reactor y puede extraer energía
+                        puntos_extraidos = 20
+                        self.partida.jugadores[id_jugador].puntaje += puntos_extraidos
+                        exito_extraccion = True
+                        print(f"[SERVIDOR] Jugador {id_jugador} extrajo energía. Puntos actuales: {jugador.puntaje}")
+
+                if exito_extraccion: #avisar sobre la estracción a los demás
+                    self._broadcast({
+                        "tipo": "accion", "jugador": id_jugador, "mensaje": "Extracción de energía exitosa, +20pts"})
+
+                    #Verificar si ganó la partida con esos puntos nuevos
+                    self.partida._verificar_ganador()
+                    self._broadcast_estado()
+                else:
+                    #alternativa, el jugador no estaba cerca del reactor 
+                    self._enviar_a(self.clientes.get(id_jugador), {"tipo": "accion", "jugador": id_jugador, "mensaje": "Acércate más al reactor"})
+
+
+                    self._aplicar_datos_cliente(self.partida.jugadores[id_jugador])
+           
         elif tipo == "identificar":
             nombre = str(mensaje.get("nombre", "")).strip()[:20]
             lleno = False
@@ -194,10 +212,7 @@ class ServidorJuego:
     #Enviar mensaje a todos los clientes que estén conectados 
 
     def _aplicar_datos_cliente(self, jugador, mensaje: dict):
-        """Puntaje y color informados por el cliente. Moverse no suma puntos: sin puntaje valido se conserva el actual."""
-        puntaje = mensaje.get("puntaje")
-        if isinstance(puntaje, int) and not isinstance(puntaje, bool) and 0 <= puntaje <= 1_000_000:
-            jugador.puntaje = puntaje
+        """Color informado por el cliente. Moverse no suma puntos: sin puntaje valido se conserva el actual."""
         color = mensaje.get("color")
         if isinstance(color, str) and re.fullmatch(r"#[0-9A-Fa-f]{6}", color):
             jugador.color = color

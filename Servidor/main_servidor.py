@@ -7,7 +7,9 @@ from Servidor.adapters.json_repository import JsonRepository
 from Servidor.use_cases.auth_service import AuthService
 from Servidor.infraestructure.socket_server import ServidorJuego
 from Servidor.adapters.smtp_mailer import MailerConRespaldo, SmtpMailer
-
+from Servidor.adapters.json_historial import JsonHistorial
+from Servidor.use_cases.estadisticas import Estadisticas
+from Servidor.adapters.github_oauth import GithubOAuth
 BASE = Path(__file__).resolve().parent
 
 def crear_mailers():
@@ -32,28 +34,37 @@ def main():
 
     # Variables
     ruta = os.getenv("DATA_FILE", str(BASE / "infraestructure" / "data" / "usuarios.json"))
+    ruta_hist = os.getenv("HISTORIAL_FILE", str(BASE / "infraestructure" / "data" / "historial.json"))
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "5555"))
-    repo = JsonRepository(ruta)
-    mailers = crear_mailers()
 
+    # Adaptadores y casos de uso
+    repo = JsonRepository(ruta)
+
+    mailers = crear_mailers()
     if not mailers:
         raise SystemExit("Falta configurar SMTP_USER y SMTP_PASS en el .env")
     mailer = mailers[0] if len(mailers) == 1 else MailerConRespaldo(mailers)
     print(f"Remitentes configurados: {len(mailers)}", flush=True)
 
     auth = AuthService(repo, mailer)
+    stats = Estadisticas(JsonHistorial(ruta_hist))
+
+    gh_id = os.getenv("GITHUB_CLIENT_ID")
+    github = GithubOAuth(gh_id) if gh_id else None
 
     # Traduce la acción del mensaje
     def manejar(msg: dict, sesion: dict) -> dict:
         accion = msg.get("action")
 
         if accion == "request_code":
-            return auth.solicitar_codigo_registro(msg.get("email", ""),msg.get("username", ""))
+            return auth.solicitar_codigo_registro(msg.get("email", ""), msg.get("username", ""))
 
         if accion == "register_confirm":
-            return auth.registrar_con_codigo(msg.get("email", ""),msg.get("username", ""),msg.get("password", ""),msg.get("code", ""))
-    
+            return auth.registrar_con_codigo(
+                msg.get("email", ""), msg.get("username", ""),
+                msg.get("password", ""), msg.get("code", ""))
+
         if accion == "register":
             return auth.registrar(msg.get("email", ""), msg.get("username", ""), msg.get("password", ""))
 
@@ -63,13 +74,10 @@ def main():
         if accion == "login":
             identificador = msg.get("identificador") or msg.get("email", "")
             resp = auth.login(identificador, msg.get("password", ""))
-
             if resp["ok"]:
                 sesion["email"] = resp["email"]
-
             return resp
 
-        
         if accion == "me":
             if "email" not in sesion:
                 return {"ok": False, "msg": "Debes iniciar sesión"}
@@ -80,14 +88,48 @@ def main():
 
         if accion == "reset":
             return auth.restablecer_password(
-                msg.get("email", ""), msg.get("code", ""), msg.get("new_password", "")
-            )
-        # Aquí se van sumando: verify, login, me, forgot, reset
+                msg.get("email", ""), msg.get("code", ""), msg.get("new_password", ""))
+
+        if accion == "ranking":
+            return {"ok": True, "ranking": stats.ranking()}
+
+        if accion == "historial":
+            return {"ok": True, "historial": stats.historial(msg.get("username", ""))}
+
+        if accion == "oauth_start":
+            if not github:
+                return {"ok": False, "msg": "Login con GitHub no está configurado en el servidor."}
+            try:
+                d = github.iniciar()
+            except Exception as e:
+                print(f"[GITHUB] Error en oauth_start: {e!r}", flush=True)
+                return {"ok": False, "msg": "No se pudo contactar a GitHub."}
+     
+        if accion == "oauth_poll":
+            if not github:
+                return {"ok": False, "msg": "Login con GitHub no está configurado."}
+            try:
+                r = github.consultar(msg.get("device_code", ""))
+                if "access_token" in r:
+                    p = github.perfil(r["access_token"])
+                    resp = auth.login_oauth("github", p["id"], p["email"], p["login"])
+                    if resp["ok"]:
+                        sesion["email"] = resp["email"]
+                    return resp
+            except Exception:
+                return {"ok": False, "msg": "Error consultando a GitHub."}
+            if r.get("error") in ("authorization_pending", "slow_down"):
+                return {"ok": False, "pendiente": True, "msg": "Esperando autorización..."}
+            return {"ok": False, "msg": "Autorización rechazada o expirada."}
+
         return {"ok": False, "msg": "Acción desconocida"}
 
-    # Arrancar
+    # Arrancar (una sola vez, al final)
+    servidor = ServidorJuego(host, port, manejar)
+    servidor.partida.on_fin = stats.registrar_partida
+
     print(f"Datos en: {ruta}", flush=True)
-    ServidorJuego(host, port, manejar).run()
+    servidor.run()
 
 
 if __name__ == "__main__":

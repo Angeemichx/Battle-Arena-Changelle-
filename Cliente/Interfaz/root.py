@@ -15,6 +15,7 @@ from pathlib import Path
 import pygame
 
 from Cliente.Interfaz.Components.ui_helpers import COLORES_AVATAR
+from Cliente.descubrimiento import obtener_servidor, olvidar_servidor
 
 CONFIG_PATH = Path(__file__).resolve().parent.parent / "Recursos" / "config_local.json"
 AUDIO_DEFAULT_PATH = Path(__file__).resolve().parent.parent / "Recursos" / "ambiente_espacial.wav"
@@ -118,7 +119,8 @@ class AppController:
         self._cargar_configuracion_partida()
 
         # 2. Parametros y Puente de Red TCP
-        self.ip_servidor = self._obtener_ip_local()
+        self.ip_servidor = None
+        self.ip_servidor_manual = False  # True cuando el invitado escribio la IP a mano
         self.puerto_servidor = 5555
         self.socket_cliente: socket.socket | None = None
         self.id_jugador_red: int | None = None
@@ -376,19 +378,44 @@ class AppController:
         """
         if self.socket_cliente is not None:
             return True
-        target_host = host or self.ip_servidor
-        target_port = port or self.puerto_servidor
+        try:
+            if host is not None:
+                target_host = host
+                target_port = port or self.puerto_servidor
+            elif self.ip_servidor and self.ip_servidor_manual:
+                # IP escrita por el invitado: se respeta en vez de buscar por la red
+                target_host = self.ip_servidor
+                target_port = port or self.puerto_servidor
+            else:
+                target_host, puerto_descubierto = obtener_servidor()
+                target_port = port or puerto_descubierto
+
+            self.ip_servidor = target_host
+            self.puerto_servidor = target_port
+
+        except ConnectionError as error:
+            print(f"[RED] {error}")
+            return False
+        
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(0.6)
+            sock.settimeout(3.0)  # por Radmin VPN la primera conexion puede tardar mas de 0.6 s
             sock.connect((target_host, int(target_port)))
             sock.settimeout(None)
+            # Sin retardo de Nagle: los mensajes de movimiento son pequenos y frecuentes
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             self.socket_cliente = sock
+
+            nombre = str(getattr(self, "usuario_actual", "") or "")
+            if nombre and nombre != "Piloto":
+                sock.sendall((json.dumps({"tipo": "identificar", "nombre": nombre}) + "\n").encode("utf-8"))
+
             hilo = threading.Thread(target=self._escuchar_servidor, daemon=True)
             hilo.start()
             return True
         except Exception:
             self.socket_cliente = None
+            olvidar_servidor()  # si el servidor encontrado ya no responde, la proxima vez se vuelve a buscar
             return False
 
     def _escuchar_servidor(self) -> None:
@@ -444,14 +471,16 @@ class AppController:
                 if id_j is not None:
                     self.acciones_remotas[int(id_j)] = time.time() + 0.5
 
-    def enviar_movimiento_red(self, dx: int, dy: int) -> None:
+    def enviar_movimiento_red(self, x, y, puntaje=None, color=None):
         """
         Descripcion:
             Envia al servidor TCP un paquete JSON con el vector de direccion (dx, dy)
             del jugador local.
         Entradas:
-            dx (int): Direccion horizontal (-1 izquierda, 0 quieto, 1 derecha).
-            dy (int): Direccion vertical (-1 arriba, 0 quieto, 1 abajo).
+            x (int): Coordenada horizontal.
+            y (int): Coordenada vertical.
+            puntaje (int | None): Puntaje actual del jugador local (si se omite, el servidor suma 1).
+            color (str | None): Color hexadecimal del avatar, para que los demas lo dibujen igual.
         Salidas:
             None: Transmite el paquete por el socket si hay conexion activa.
         Restricciones:
@@ -460,12 +489,17 @@ class AppController:
         if self.socket_cliente is None:
             return
         try:
-            paquete = json.dumps({"tipo": "movimiento", "dx": int(dx), "dy": int(dy)}) + "\n"
+            msg = {"tipo": "movimiento", "x": int(x), "y": int(y)}
+            if puntaje is not None:
+                msg["puntaje"] = int(puntaje)
+            if color:
+                msg["color"] = str(color)
+            paquete = json.dumps(msg) + "\n"
             self.socket_cliente.sendall(paquete.encode("utf-8"))
         except Exception:
             self.socket_cliente = None
 
-    def enviar_accion_red(self, texto: str = "[EXTRAYENDO]") -> None:
+    def enviar_accion_red(self, texto: str = "[EXTRAYENDO]", puntaje=None) -> None:
         """
         Descripcion:
             Envia al servidor TCP una notificacion de que el jugador local esta presionando
@@ -480,7 +514,37 @@ class AppController:
         if self.socket_cliente is None:
             return
         try:
-            paquete = json.dumps({"tipo": "accion", "mensaje": texto}) + "\n"
+            msg = {"tipo": "accion", "mensaje": texto}
+            if puntaje is not None:
+                msg["puntaje"] = int(puntaje)
+            paquete = json.dumps(msg) + "\n"
+            self.socket_cliente.sendall(paquete.encode("utf-8"))
+        except Exception:
+            self.socket_cliente = None
+
+    def enviar_configuracion_partida_red(self) -> None:
+        """
+        Descripcion:
+            Transmite al servidor TCP la configuracion establecida por el Creador (minutos,
+            meta de puntos, modo de fin y congelamiento) antes de arrancar la arena (US-08).
+        Entradas:
+            Ninguna.
+        Salidas:
+            None: Envia el paquete 'configurar_partida' si el socket esta activo.
+        Restricciones:
+            No bloquea la aplicacion si el socket se encuentra desconectado.
+        """
+        if self.socket_cliente is None:
+            return
+        try:
+            msg = {
+                "tipo": "configurar_partida",
+                "minutos": int(self.tiempo_partida_min),
+                "puntos": int(self.puntos_meta),
+                "modo": self.modo_fin,
+                "congelamiento": int(self.tiempo_congelado_seg),
+            }
+            paquete = json.dumps(msg) + "\n"
             self.socket_cliente.sendall(paquete.encode("utf-8"))
         except Exception:
             self.socket_cliente = None

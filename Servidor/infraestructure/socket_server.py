@@ -1,9 +1,15 @@
+import re
 import socket
 import threading
 import json
 import time
 from Servidor.domain.jugador import Jugador
 from Servidor.domain.partida import Partida
+
+
+def _es_coordenada(valor) -> bool:
+    """Coordenada valida: entero (no bool) dentro del mundo de juego."""
+    return isinstance(valor, int) and not isinstance(valor, bool) and -10000 <= valor <= 10000
 
 
 #Servidor TCP para aceptar clientes y sincronizar su estado
@@ -18,6 +24,8 @@ class ServidorJuego:
         self.clientes={}
         self.sesiones = {}
         self.lock = threading.Lock()
+        # Serializa los envios: dos hilos escribiendo en el mismo socket pueden mezclar mensajes
+        self._envio_lock = threading.Lock()
         self.partida = Partida(id_partida="partida_1", limite_puntos=50)
         self.siguiente_id = 1 
 
@@ -25,7 +33,7 @@ class ServidorJuego:
 
     def run(self):
         self.socket_servidor.bind((self.host, self.port))
-        self.socket_servidor.listen(2)
+        self.socket_servidor.listen(10)
         print(f"[SERVIDOR] Escuchando en {self.host}:{self.port}")
 
         #Agregar hilo para revisar el tiempo en cada segundo que transcurre
@@ -47,26 +55,18 @@ class ServidorJuego:
         id_jugador = None
         buffer = ""
         aceptado = False
+        try:
+            # Sin retardo de Nagle: los mensajes de movimiento son pequenos y frecuentes
+            socket_cliente.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        except OSError:
+            pass
 
         try:
             #Asignar id para registrar al jugador
-
             with self.lock:
-                if len(self.clientes) >= 2:
-                    mensaje_error = {"tipo": "error", "mensaje": "Partida llena"}
-                    datos = (json.dumps(mensaje_error)+"\n").encode("utf-8")
-                    try:
-                        socket_cliente.sendall(datos)
-                    except Exception:
-                        pass
-                    return 
-                
                 id_jugador = self.siguiente_id
                 self.siguiente_id += 1
                 self.clientes[id_jugador] = socket_cliente
-
-                jugador = Jugador(id_jugador=id_jugador, nombre=f"Jugador{id_jugador}")
-                self.partida.agregar_jugador(jugador)
                 aceptado = True
 
             #Confirmar la conexión con el cliente 
@@ -75,7 +75,7 @@ class ServidorJuego:
 
             #Avisar a todos los clientes el nuevo estado
 
-            self._broadcast(self.partida.estado_actual())
+            self._broadcast_estado()
 
             #Escuchar mensajes de este cliente
 
@@ -90,6 +90,7 @@ class ServidorJuego:
                 while "\n" in buffer:
                     linea, buffer = buffer.split("\n", 1)
                     if linea.strip():
+                        print(f"[SERVIDOR] socket_server, mensaje recibido de {id_jugador}: {linea}")
                         self._procesar_mensaje(id_jugador, linea)
 
         except ConnectionResetError:
@@ -111,7 +112,7 @@ class ServidorJuego:
                 except Exception:
                     pass
                 print(f"[SERVIDOR] Cliente {id_jugador} desconectado")
-                self._broadcast(self.partida.estado_actual())
+                self._broadcast_estado()
 
             else: 
                 try:
@@ -136,23 +137,77 @@ class ServidorJuego:
             minutos = mensaje.get("minutos", 5)
             self.partida.iniciar_cronometro(minutos)
             print (f"[SERVIDOR] Partida configurada para {minutos} minutos.")
-            self._broadcast(self.partida.estado_actual())
+            self._broadcast_estado()
 
         elif tipo == "movimiento":
-            dx = mensaje.get("dx", 0)
-            dy = mensaje.get("dy", 0)
+            x = mensaje.get("x", 0)
+            y = mensaje.get("y", 0)
             with self.lock:
-                self.partida.mover_jugador(id_jugador, dx, dy)
-                estado = self.partida.estado_actual()
-            self._broadcast(estado)
+                if id_jugador in self.partida.jugadores:
+                    jugador = self.partida.jugadores[id_jugador]
+                    if _es_coordenada(x) and _es_coordenada(y):
+                        jugador.x = x
+                        jugador.y = y
+                    self._aplicar_datos_cliente(jugador, mensaje)
+            self._broadcast_estado()
 
-        #Acción que se debe modificar a una acción física más adelante
+        #Acción para validar que el jugador está en la zona del reactor
 
         elif tipo == "accion":
-            self._broadcast({
-                "tipo": "accion",
-                "jugador": id_jugador,
-                "mensaje": mensaje.get("mensaje", "¡Acción!"),})
+            exito_extraccion = False
+            with self.lock:
+                if id_jugador in self.partida.jugadores:
+                    jugador = self.partida.jugadores[id_jugador]
+                    dx = jugador.x - 1800
+                    dy = jugador.y - 1300
+                    distancia = (dx ** 2 + dy ** 2) ** 0.5
+
+                    if distancia <= 210:
+                        # El jugador está dentro del área del reactor y puede extraer energía
+                        puntos_extraidos = 20
+                        self.partida.jugadores[id_jugador].puntaje += puntos_extraidos
+                        exito_extraccion = True
+                        print(f"[SERVIDOR] Jugador {id_jugador} extrajo energía. Puntos actuales: {jugador.puntaje}")
+
+                if exito_extraccion: #avisar sobre la estracción a los demás
+                    self._broadcast({
+                        "tipo": "accion", "jugador": id_jugador, "mensaje": "Extracción de energía exitosa, +20pts"})
+
+                    #Verificar si ganó la partida con esos puntos nuevos
+                    self.partida._verificar_ganador()
+                    self._broadcast_estado()
+                else:
+                    #alternativa, el jugador no estaba cerca del reactor 
+                    self._enviar_a(self.clientes.get(id_jugador), {"tipo": "accion", "jugador": id_jugador, "mensaje": "Acércate más al reactor"})
+
+
+                    self._aplicar_datos_cliente(self.partida.jugadores[id_jugador])
+           
+        elif tipo == "identificar":
+            nombre = str(mensaje.get("nombre", "")).strip()[:20]
+            lleno = False
+            with self.lock:
+                if id_jugador not in self.partida.jugadores:
+                    if len(self.partida.jugadores) >= 2:
+                        lleno = True
+                    else:
+                        self.partida.agregar_jugador(
+                            Jugador(id_jugador=id_jugador, nombre=nombre or f"Jugador{id_jugador}")
+                        )
+                elif nombre:
+                    self.partida.jugadores[id_jugador].nombre = nombre
+            if lleno:
+                self._enviar_a(self.clientes.get(id_jugador), {"tipo": "error", "mensaje": "Partida llena"})
+            else:
+                self._broadcast_estado()
+
+
+        # Manejo de peticiones de cuentas (registro, verificacion, login, etc.)
+        elif accion:
+            sesion = self.sesiones.setdefault(id_jugador, {})
+            with self.lock:
+                respuesta = self.manejar(mensaje, sesion)
+            self._enviar_a(self.clientes.get(id_jugador), respuesta)
 
         # Manejo de peticiones de cuentas (registro, verificacion, login, etc.)
         elif accion:
@@ -163,10 +218,34 @@ class ServidorJuego:
 
     #Enviar mensaje a todos los clientes que estén conectados 
 
+    def _aplicar_datos_cliente(self, jugador, mensaje: dict):
+        """Color informado por el cliente. Moverse no suma puntos: sin puntaje valido se conserva el actual."""
+        color = mensaje.get("color")
+        if isinstance(color, str) and re.fullmatch(r"#[0-9A-Fa-f]{6}", color):
+            jugador.color = color
+
+    def _broadcast_estado(self):
+        """
+        Difunde el estado actual. La foto del estado y su envio ocurren en el mismo bloque:
+        si se tomara la foto fuera de el, un estado viejo podia llegar DESPUES de uno nuevo
+        (dos jugadores moviendose a la vez) y los clientes se quedaban con la posicion vieja.
+        """
+        with self._envio_lock:
+            with self.lock:
+                datos = (json.dumps(self.partida.estado_actual()) + "\n").encode("utf-8")
+                destinos = list(self.clientes.values())
+            for socket_cliente in destinos:
+                try:
+                    socket_cliente.sendall(datos)
+                except Exception:
+                    pass
+
     def _broadcast(self, mensaje: dict):
         datos = (json.dumps(mensaje) + "\n").encode("utf-8")
         with self.lock:
-            for socket_cliente in list(self.clientes.values()):
+            destinos = list(self.clientes.values())
+        with self._envio_lock:
+            for socket_cliente in destinos:
                 try:
                     socket_cliente.sendall(datos)
                 except Exception:
@@ -176,7 +255,8 @@ class ServidorJuego:
     def _enviar_a(self, socket_cliente, mensaje: dict):
         datos = (json.dumps(mensaje) + "\n").encode("utf-8")
         try:
-            socket_cliente.sendall(datos)
+            with self._envio_lock:
+                socket_cliente.sendall(datos)
         except Exception:
             pass
 
@@ -186,4 +266,4 @@ class ServidorJuego:
             if self.partida.activa:
                 self.partida.verificar_tiempo()
                 # Llamar al broadcast
-                self._broadcast(self.partida.estado_actual())
+                self._broadcast_estado()

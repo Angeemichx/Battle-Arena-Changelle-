@@ -18,9 +18,32 @@ class SmtpMailer:
         msg["To"] = destino
         msg["Subject"] = asunto
         try:
-            with smtplib.SMTP_SSL(self.host, self.port) as s:
-                s.login(self.user, self.password)
-                s.send_message(msg)
-            print(f"[MAIL SIMULADO] Para: {destino}\n{asunto}\n{cuerpo}\n", flush=True)
+            if self.port == 465:
+                with smtplib.SMTP_SSL(self.host, self.port, timeout=15) as s:
+                    s.login(self.user, self.password)
+                    s.send_message(msg)
+            else:  
+                with smtplib.SMTP(self.host, self.port, timeout=15) as s:
+                    s.starttls()
+                    s.login(self.user, self.password)
+                    s.send_message(msg)
+            print(f"[MAIL] Enviado a {destino}", flush=True)
+            return True
         except Exception as e:
             print(f"[MAIL] Error enviando a {destino}: {e}", flush=True)
+            return False
+
+class MailerConRespaldo:
+    def __init__(self, mailers):
+        self.mailers = mailers
+
+    def enviar(self, destino: str, asunto: str, cuerpo: str):
+        threading.Thread(
+            target=self._intentar, args=(destino, asunto, cuerpo), daemon=True
+        ).start()
+
+    def _intentar(self, destino, asunto, cuerpo):
+        for m in self.mailers:
+            if m._enviar(destino, asunto, cuerpo):
+                return
+        print(f"[MAIL] Ningún proveedor pudo enviar a {destino}", flush=True)

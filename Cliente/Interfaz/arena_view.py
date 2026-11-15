@@ -5,7 +5,7 @@ Vista de la Arena de Batalla en Pygame (US-07, US-14, US-15, US-16, US-17).
 - Reactor Central en (1800, 1300) y 4 plataformas de Spawn (Norte, Sur, Oeste, Este).
 - Parametros configurables desde el Lobby (Tiempo de Partida y Meta de Puntos).
 - Sistema de puntuacion por segundos:
-  * Contador de segundos en movimiento: cada 1 segundo en movimiento multiplica por 10 (+10 pts/seg).
+  * Moverse NO otorga puntos.
   * Contador de segundos extrayendo en el Reactor: cada 1 segundo extrayendo suma 40 (+40 pts/seg).
 - Condicion de Victoria y Desempate Automatico (US-16 / CA-16.4: +2 minutos si hay empate en el 1er lugar).
 - Pantalla de Victoria (US-17) con avatar ganador, tabla de posiciones y retorno al Lobby con mando (Command.ACTION).
@@ -31,6 +31,7 @@ from Cliente.Interfaz.arena_collisions import (
     obtener_hitbox_reactor,
     obtener_muros_arena,
 )
+from Cliente.Interfaz.pasos import pasos_de_movimiento
 from Cliente.Interfaz.Components.hud import dibujar_hud_arena, hex_to_rgb
 from Cliente.Interfaz.Components.sprite_loader import (
     inicializar_sprites,
@@ -106,8 +107,7 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
     Descripcion:
         Ejecuta el bucle principal de la Arena de Batalla (mundo de 3600x2600 px) con
         seguimiento de camara (Camera Follow), colisiones contra muros y Reactor Central,
-        acumulacion de puntaje por segundo en movimiento (+10 pts/s) y extraccion en el
-        Reactor (+40 pts/s), y renderizado de la Pantalla de Victoria (US-17).
+        extraccion de puntaje en el Reactor (+40 pts/s; moverse no da puntos), y renderizado de la Pantalla de Victoria (US-17).
     Entradas:
         controller (AppController): Instancia del controlador maestro con parametros y red.
         screen (pygame.Surface | None): Superficie de ventana Pygame activa o None para crearla.
@@ -176,14 +176,23 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
             "color": j.get("color", "#E63946"),
             "es_local": j.get("es_local", idx == 0),
             "rect": rect_j,
-            "segundos_movimiento": 0,
-            "acum_mov": 0.0,
             "segundos_reactor": 0,
             "acum_reactor": 0.0,
             "puntos": 0,
             "extrayendo": False,
             "direccion": "down",
         })
+
+    # Punto de salida segun el orden de llegada al servidor: asi todos los clientes colocan
+    # a cada jugador en el mismo lugar (si aun no hay identificacion se conservan los de arriba)
+    from Cliente.Interfaz.red_sync import aplicar_estado_remoto, asignar_spawns, suavizar_remotos
+    with controller.estado_red_lock:
+        estado_inicial = list((getattr(controller, "estado_partida_red", None) or {}).get("jugadores", []))
+    spawns = asignar_spawns(estado_inicial, getattr(controller, "id_jugador_red", None))
+    if spawns:
+        for jug_s, idx_s in zip([j for j in jugadores if j["es_local"]] + [j for j in jugadores if not j["es_local"]], spawns):
+            spx, spy = SPAWN_POINTS.get(idx_s, (1800, 260))
+            jug_s["rect"].center = (spx, spy)
 
     # Verificacion de seguridad: garantizar que no se repitan colores entre jugadores (CA-10.3)
     from Cliente.Interfaz.Components.ui_helpers import COLORES_AVATAR
@@ -212,6 +221,7 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
     tiempo_restante = 0.0 if modo_fin == "puntos" else float(tiempo_partida_min * 60)
     controller.partida_en_curso = True  # bloquea la configuracion hasta salir (CA-08.6)
     velocidad_jugador = 7.0
+    resto_pasos = 0.0  # fraccion de paso acumulada: la velocidad no depende de los FPS de la laptop
 
     # Estado de Victoria y Desempate (US-16 / US-17)
     partida_finalizada = False
@@ -279,14 +289,15 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
                 banner_desempate_timer = max(0.0, banner_desempate_timer - dt)
 
             # =====================================================================
-            # 1. ENTRADA DEL JUGADOR Y CONTADORES DE SEGUNDOS (MOV x10 / REACTOR x40)
+            # 1. ENTRADA DEL JUGADOR Y CONTADOR DE SEGUNDOS (REACTOR x40)
             # =====================================================================
             accion_activa = (Command.ACTION in comandos_actuales) and (not esperando_soltar_accion)
             jugador_local["extrayendo"] = accion_activa
+            n_pasos, resto_pasos = pasos_de_movimiento(dt, resto_pasos)
 
             if not accion_activa:
                 dx_unit, dy_unit = direction_from(comandos_actuales)
-                if dx_unit != 0 or dy_unit != 0:
+                if (dx_unit != 0 or dy_unit != 0) and n_pasos > 0:
                     # Actualizar orientacion del sprite del jugador
                     if abs(dx_unit) >= abs(dy_unit):
                         jugador_local["direccion"] = "right" if dx_unit > 0 else "left"
@@ -294,54 +305,47 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
                         jugador_local["direccion"] = "down" if dy_unit > 0 else "up"
 
                     pos_previa = jugador_local["rect"].topleft
-                    jugador_local["rect"] = mover_con_colisiones(
-                        jugador_local["rect"],
-                        dx_unit * velocidad_jugador,
-                        dy_unit * velocidad_jugador,
-                        obstaculos_totales,
-                        limites_mundo,
-                        circulo_reactor=circulo_reactor_colision,
-                    )
-                    # Si el jugador se desplazo efectivamente, contar el tiempo en movimiento
+                    for _ in range(n_pasos):
+                        jugador_local["rect"] = mover_con_colisiones(
+                            jugador_local["rect"],
+                            dx_unit * velocidad_jugador,
+                            dy_unit * velocidad_jugador,
+                            obstaculos_totales,
+                            limites_mundo,
+                            circulo_reactor=circulo_reactor_colision,
+                        )
+                    # Moverse no da puntos: solo se informa la nueva posicion
                     if jugador_local["rect"].topleft != pos_previa:
-                        jugador_local["acum_mov"] += dt
-                        while jugador_local["acum_mov"] >= 1.0:
-                            jugador_local["acum_mov"] -= 1.0
-                            jugador_local["segundos_movimiento"] += 1
-                            jugador_local["puntos"] = (
-                                jugador_local["segundos_movimiento"] * 10
-                                + jugador_local["segundos_reactor"] * 40
-                            )
-                        controller.enviar_movimiento_red(dx_unit, dy_unit)
+                        controller.enviar_movimiento_red(
+                            jugador_local["rect"].x, jugador_local["rect"].y,
+                            jugador_local["puntos"], jugador_local["color"],
+                        )
             else:
-                controller.enviar_accion_red("[EXTRAYENDO]")
+                controller.enviar_accion_red("[EXTRAYENDO]", jugador_local["puntos"])
                 # Si mantiene presionado el 5to boton dentro de la zona del Reactor, suma 40 pts por cada segundo
                 if esta_en_zona_extraccion(jugador_local["rect"]):
                     jugador_local["acum_reactor"] += dt
                     while jugador_local["acum_reactor"] >= 1.0:
                         jugador_local["acum_reactor"] -= 1.0
                         jugador_local["segundos_reactor"] += 1
-                        jugador_local["puntos"] = (
-                            jugador_local["segundos_movimiento"] * 10
-                            + jugador_local["segundos_reactor"] * 40
-                        )
+                        jugador_local["puntos"] = jugador_local["segundos_reactor"] * 40
 
             # Sincronizar posiciones/acciones de otros jugadores si el servidor TCP esta activo
             if getattr(controller, "estado_partida_red", None):
                 import time
                 ahora = time.time()
                 with controller.estado_red_lock:
-                    remotos = controller.estado_partida_red.get("jugadores", [])
-                    for idx_r, datos_r in enumerate(remotos):
-                        if idx_r < len(jugadores) and not jugadores[idx_r]["es_local"]:
-                            jugadores[idx_r]["nombre"] = datos_r.get("nombre", jugadores[idx_r]["nombre"])
-                            jugadores[idx_r]["puntos"] = int(datos_r.get("puntaje", jugadores[idx_r]["puntos"]))
-                            rx_rem = datos_r.get("x")
-                            ry_rem = datos_r.get("y")
-                            if rx_rem is not None and ry_rem is not None and (rx_rem != 0 or ry_rem != 0):
-                                jugadores[idx_r]["rect"].topleft = (int(rx_rem), int(ry_rem))
-                            id_rem = int(datos_r.get("id", idx_r + 1))
-                            jugadores[idx_r]["extrayendo"] = controller.acciones_remotas.get(id_rem, 0) > ahora
+                    # Se identifica a cada jugador por su id (no por su posicion en la lista)
+                    aplicar_estado_remoto(
+                        jugadores,
+                        controller.estado_partida_red.get("jugadores", []),
+                        getattr(controller, "id_jugador_red", None),
+                        controller.acciones_remotas,
+                        ahora,
+                        controller.obtener_nombre_color,
+                    )
+            # El rival se desliza hacia su ultima posicion en vez de saltar entre mensajes
+            suavizar_remotos(jugadores, dt)
 
             # Evaluar Condicion de Victoria y Desempate Automatico (US-16 / CA-16.4)
             terminada, ganador, hubo_desempate, nuevo_t = evaluar_condicion_victoria(
@@ -551,7 +555,6 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
 
         # Panel inferior izquierdo con el desglose en vivo de los segundos, puntos y meta
         font_guia = pygame.font.SysFont("Segoe UI", max(11, int(13 * sy)), bold=True)
-        seg_mov = jugador_local["segundos_movimiento"]
         seg_reac = jugador_local["segundos_reactor"]
         pts_tot = jugador_local["puntos"]
 
@@ -563,7 +566,6 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
             str_modalidad = f"Modalidad: Estandar ({tiempo_partida_min}m | {puntos_meta} pts)"
 
         texto_contador = (
-            f"Mov: {seg_mov}s (x10 = {seg_mov * 10} pts)  |  "
             f"Reactor: {seg_reac}s (x40 = {seg_reac * 40} pts)  |  "
             f"Total: {pts_tot} pts  |  "
             f"{str_modalidad}  |  "

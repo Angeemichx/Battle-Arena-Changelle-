@@ -1,12 +1,13 @@
 #Se crea la clase jugador para representar a cada jugador que se encuentra dentro de la partida
 
 class Jugador:
-    def __init__(self, id_jugador: int, nombre:str, x: int=0, y: int = 0):
+    def __init__(self, id_jugador: int, nombre:str, x: int=0, y: int = 0, color: str | None = None):
         self.id_jugador = id_jugador 
         self.nombre = nombre 
         self.x = x
         self.y = y
         self.puntaje = 0 
+        self.color = color  # color hexadecimal del avatar (opcional, lo informa el cliente)
 
     #Movimiento del jugador sumando dy y dx, ademas restricciones de limites de la arena 
 
@@ -22,15 +23,12 @@ class Jugador:
         if 0<= nueva_y <= limite:
             self.y = nueva_y
 
-    def sumar_punto(self):
-        #En este parametro se sumara un punto por cada moviento 
-        self.puntaje +=1
-
     #convertir el jugador en un diccionario para poder enviarlo como JSON
     def to_dict(self):
         return {"id": self.id_jugador, 
                 "nombre": self.nombre, 
                 "x": self.x, 
                 "y": self.y, 
-                "puntaje": self.puntaje}
+                "puntaje": self.puntaje,
+                "color": self.color}
 

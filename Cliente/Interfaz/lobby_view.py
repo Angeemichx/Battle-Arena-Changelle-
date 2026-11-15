@@ -228,7 +228,8 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
         jugadores[0]["pos_y"] = None
 
     avatar_img_surface = _safe_load_avatar(getattr(controller, "avatar_imagen", None))
-    minimapa_base = _generar_superficie_minimapa(controller.mapa_seleccionado)
+    mapa_cacheado = controller.mapa_seleccionado
+    minimapa_base = _generar_superficie_minimapa(mapa_cacheado)
 
     # Estado del modal y alertas notorias
     modal_abierto = False
@@ -329,6 +330,12 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
             jug["rect"] = pygame.Rect(int(jug["pos_x"]), int(jug["pos_y"]), hitbox_size, hitbox_size)
 
         jugador_local = jugadores[0]
+        # Sincronizacion reactiva del minimapa si el anfitrion cambio el mapa (US-23)
+        mapa_actual = getattr(controller, "mapa_seleccionado", "Estacion Estandar")
+        if mapa_actual != mapa_cacheado:
+            minimapa_base = _generar_superficie_minimapa(mapa_actual)
+            mapa_cacheado = mapa_actual
+
         cerca_de_mesa = jugador_local["rect"].colliderect(zona_interaccion)
         en_zona_despegue = jugador_local["rect"].colliderect(zona_despegue)
         en_zona_salida = jugador_local["rect"].colliderect(zona_salida)

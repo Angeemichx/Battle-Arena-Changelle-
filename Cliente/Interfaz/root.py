@@ -471,6 +471,11 @@ class AppController:
                 if id_j is not None:
                     self.acciones_remotas[int(id_j)] = time.time() + 0.5
 
+            # Sincronizacion de mapa seleccionado para clientes invitados (US-23)
+            mapa_remoto = mensaje.get("mapa")
+            if mapa_remoto and not getattr(self, "es_creador", False):
+                self.mapa_seleccionado = str(mapa_remoto)
+
     def enviar_movimiento_red(self, x, y, puntaje=None, color=None):
         """
         Descripcion:
@@ -526,7 +531,8 @@ class AppController:
         """
         Descripcion:
             Transmite al servidor TCP la configuracion establecida por el Creador (minutos,
-            meta de puntos, modo de fin y congelamiento) antes de arrancar la arena (US-08).
+            meta de puntos, modo de fin, congelamiento y mapa seleccionado) antes de arrancar
+            la arena (US-08, US-23).
         Entradas:
             Ninguna.
         Salidas:
@@ -543,33 +549,7 @@ class AppController:
                 "puntos": int(self.puntos_meta),
                 "modo": self.modo_fin,
                 "congelamiento": int(self.tiempo_congelado_seg),
-            }
-            paquete = json.dumps(msg) + "\n"
-            self.socket_cliente.sendall(paquete.encode("utf-8"))
-        except Exception:
-            self.socket_cliente = None
-
-    def enviar_configuracion_partida_red(self) -> None:
-        """
-        Descripcion:
-            Transmite al servidor TCP la configuracion establecida por el Creador (minutos,
-            meta de puntos, modo de fin y congelamiento) antes de arrancar la arena (US-08).
-        Entradas:
-            Ninguna.
-        Salidas:
-            None: Envia el paquete 'configurar_partida' si el socket esta activo.
-        Restricciones:
-            No bloquea la aplicacion si el socket se encuentra desconectado.
-        """
-        if self.socket_cliente is None:
-            return
-        try:
-            msg = {
-                "tipo": "configurar_partida",
-                "minutos": int(self.tiempo_partida_min),
-                "puntos": int(self.puntos_meta),
-                "modo": self.modo_fin,
-                "congelamiento": int(self.tiempo_congelado_seg),
+                "mapa": str(self.mapa_seleccionado),
             }
             paquete = json.dumps(msg) + "\n"
             self.socket_cliente.sendall(paquete.encode("utf-8"))

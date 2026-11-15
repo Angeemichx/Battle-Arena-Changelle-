@@ -603,3 +603,67 @@ def test_recuperacion_contrasena_us_05(monkeypatch):
     assert enviados[-1] == ("reset", {"email": "piloto@gmail.com", "code": "123456", "new_password": "NuevaClave123"})
 
 
+
+
+def test_escenarios_us_23_diferencias_funcionales_y_fallback():
+    """
+    Descripcion:
+        Verifica el cumplimiento de CA-23.1 y el DoD de US-23:
+        1. Al menos dos escenarios seleccionables con distribucion funcional distinta.
+        2. Mas muros/bloqueos en Reactor Inestable y Laberinto Cerrado respecto a Estacion Estandar.
+        3. Manejo seguro con fallback a Estacion Estandar si el nombre del mapa es desconocido.
+    Entradas:
+        Ninguna.
+    Salidas:
+        None: Aserciones sobre la cantidad de rectangulos de colision de cada mapa.
+    Restricciones:
+        Ninguna.
+    """
+    from Cliente.Interfaz.arena_collisions import obtener_muros_arena
+
+    muros_base = obtener_muros_arena("Estacion Estandar")
+    muros_inestable = obtener_muros_arena("Reactor Inestable")
+    muros_laberinto = obtener_muros_arena("Laberinto Cerrado")
+    muros_fallback = obtener_muros_arena("MapaDesconocidoXYZ")
+
+    # Hay al menos 2 variantes con diferencias funcionales claras
+    assert len(muros_base) >= 8
+    assert len(muros_inestable) > len(muros_base)
+    assert len(muros_laberinto) > len(muros_base)
+    assert len(muros_inestable) != len(muros_laberinto)
+
+    # Fallback seguro para nombres no validos
+    assert len(muros_fallback) == len(muros_base)
+
+
+def test_sincronizacion_mapa_red_us_23():
+    """
+    Descripcion:
+        Verifica el cumplimiento de CA-23.4:
+        1. El cliente invitado (es_creador=False) adopta reactivamente el mapa recibido por red.
+        2. El cliente anfitrion (es_creador=True) preserva su seleccion local.
+    Entradas:
+        Ninguna.
+    Salidas:
+        None: Aserciones sobre controller.mapa_seleccionado.
+    Restricciones:
+        Ninguna.
+    """
+    from Cliente.Interfaz.root import AppController
+
+    app = AppController()
+
+    # Caso 1: Invitado recibe actualizacion de mapa
+    app.es_creador = False
+    app.mapa_seleccionado = "Estacion Estandar"
+    app.actualizar_estado_red({"tipo": "estado", "mapa": "Reactor Inestable"})
+    assert app.mapa_seleccionado == "Reactor Inestable"
+
+    app.actualizar_estado_red({"tipo": "configurar_partida", "mapa": "Laberinto Cerrado"})
+    assert app.mapa_seleccionado == "Laberinto Cerrado"
+
+    # Caso 2: Creador mantiene su seleccion y no es sobreescrito
+    app.es_creador = True
+    app.mapa_seleccionado = "Reactor Inestable"
+    app.actualizar_estado_red({"tipo": "estado", "mapa": "Estacion Estandar"})
+    assert app.mapa_seleccionado == "Reactor Inestable"

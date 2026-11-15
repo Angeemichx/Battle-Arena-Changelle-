@@ -125,3 +125,91 @@ def test_spawns_con_ids_no_consecutivos():
 @pytest.mark.parametrize("estado,mi_id", [([], 1), ([ANA], None), ([ANA], 2), (["x"], 1)])
 def test_spawns_sin_identificar_devuelve_none(estado, mi_id):
     assert asignar_spawns(estado, mi_id) is None
+
+
+# ---------- suavizado y orientacion del rival ----------
+from Cliente.Interfaz.red_sync import direccion_de, otros_jugadores, suavizar_remotos
+
+
+def rival(x=0, y=0):
+    return {"es_local": False, "rect": rect(x, y), "nombre": "R", "puntos": 0, "color": "#1D3557"}
+
+
+def test_primera_posicion_del_rival_se_aplica_de_inmediato():
+    js = [casillas()[0], rival()]
+    aplicar_estado_remoto(js, [ANA, BETO], 1, {}, 0)
+    assert js[1]["rect"].topleft == (1500, 900)
+
+
+def test_el_rival_se_desliza_hacia_la_nueva_posicion_sin_saltar():
+    js = [casillas()[0], rival()]
+    aplicar_estado_remoto(js, [ANA, BETO], 1, {}, 0)
+    aplicar_estado_remoto(js, [ANA, {**BETO, "x": 1600}], 1, {}, 0)
+    suavizar_remotos(js, 1 / 60)
+    x = js[1]["rect"].topleft[0]
+    assert 1500 < x < 1600  # avanzo, pero no llego de golpe
+
+
+def test_el_rival_termina_exactamente_en_la_posicion_recibida():
+    js = [casillas()[0], rival()]
+    aplicar_estado_remoto(js, [ANA, BETO], 1, {}, 0)
+    aplicar_estado_remoto(js, [ANA, {**BETO, "x": 1600, "y": 950}], 1, {}, 0)
+    for _ in range(120):
+        suavizar_remotos(js, 1 / 60)
+    assert js[1]["rect"].topleft == (1600, 950)
+
+
+def test_salto_muy_grande_se_aplica_de_golpe():
+    js = [casillas()[0], rival()]
+    aplicar_estado_remoto(js, [ANA, BETO], 1, {}, 0)
+    aplicar_estado_remoto(js, [ANA, {**BETO, "x": 100, "y": 100}], 1, {}, 0)
+    suavizar_remotos(js, 1 / 60)
+    assert js[1]["rect"].topleft == (100, 100)
+
+
+def test_el_rival_mira_hacia_donde_se_mueve():
+    js = [casillas()[0], rival()]
+    aplicar_estado_remoto(js, [ANA, BETO], 1, {}, 0)
+    aplicar_estado_remoto(js, [ANA, {**BETO, "x": 1400}], 1, {}, 0)
+    suavizar_remotos(js, 1 / 60)
+    assert js[1]["direccion"] == "left"
+
+
+@pytest.mark.parametrize("dx,dy,esperado", [(5, 0, "right"), (-5, 0, "left"), (0, 5, "down"), (0, -5, "up"), (3, -9, "up")])
+def test_direccion_de(dx, dy, esperado):
+    assert direccion_de(dx, dy) == esperado
+
+
+def test_sin_movimiento_conserva_la_orientacion():
+    assert direccion_de(0, 0, "left") == "left"
+
+
+def test_suavizar_no_toca_al_jugador_local_ni_con_dt_invalido():
+    js = casillas()
+    antes = js[0]["rect"].topleft
+    suavizar_remotos(js, 1 / 60)
+    suavizar_remotos(js, 0)
+    suavizar_remotos(js, -1)
+    assert js[0]["rect"].topleft == antes
+
+
+def test_rival_sin_posicion_conocida_no_se_mueve():
+    js = [casillas()[0], rival(99, 99)]
+    suavizar_remotos(js, 1 / 60)
+    assert js[1]["rect"].topleft == (99, 99)
+
+
+# ---------- lobby: quienes son los demas ----------
+def test_otros_jugadores_excluye_al_propio_por_id():
+    assert [d["id"] for d in otros_jugadores([ANA, BETO], 2)] == [1]
+    assert [d["id"] for d in otros_jugadores([BETO, ANA], 1)] == [2]
+
+
+def test_otros_jugadores_sin_identificar_asume_que_soy_el_primero():
+    assert [d["id"] for d in otros_jugadores([ANA, BETO], None)] == [2]
+    assert [d["id"] for d in otros_jugadores([ANA, BETO], 99)] == [2]
+
+
+def test_otros_jugadores_lista_vacia_o_basura():
+    assert otros_jugadores([], 1) == []
+    assert otros_jugadores(["x", None], 1) == []

@@ -123,7 +123,7 @@ class JugarView(ctk.CTk):
             text_color="#2A9D8F",
         ).pack(side="left")
 
-        ip_detectada = self.controller.ip_servidor
+        ip_detectada = self.controller.ip_servidor or "automatica (Radmin VPN)"
         ctk.CTkLabel(
             box_host,
             text=f"Direccion IP de transmision: {ip_detectada} : {self.controller.puerto_servidor}",
@@ -165,8 +165,7 @@ class JugarView(ctk.CTk):
             text_color="#4A90E2",
         ).pack(side="left")
 
-        self.txt_ip = ctk.CTkEntry(box_join, placeholder_text="IP del Host", width=240, height=34)
-        self.txt_ip.insert(0, "127.0.0.1")
+        self.txt_ip = ctk.CTkEntry(box_join, placeholder_text="IP del Host (vacio = automatica)", width=240, height=34)
         self.txt_ip.pack(pady=3)
 
         self.txt_puerto = ctk.CTkEntry(box_join, placeholder_text="Puerto", width=240, height=34)
@@ -200,6 +199,8 @@ class JugarView(ctk.CTk):
             Como Anfitrion, tendra permisos exclusivos para modificar el mapa y parametros.
         """
         self.controller.es_creador = True
+        self.controller.ip_servidor = None  # el anfitrion busca el servidor automaticamente
+        self.controller.ip_servidor_manual = False
         self.controller.entrar_al_lobby()
 
     def _unirse_sala(self) -> None:
@@ -215,11 +216,12 @@ class JugarView(ctk.CTk):
             Si el puerto escrito no es un entero valido, utiliza por defecto el puerto 5555.
         """
         self.controller.es_creador = False
-        ip = self.txt_ip.get().strip() or "127.0.0.1"
+        ip = self.txt_ip.get().strip()  # vacio = se busca el servidor automaticamente
         try:
             puerto = int(self.txt_puerto.get().strip() or "5555")
         except ValueError:
             puerto = 5555
-        self.controller.ip_servidor = ip
+        self.controller.ip_servidor = ip or None
+        self.controller.ip_servidor_manual = bool(ip)
         self.controller.puerto_servidor = puerto
         self.controller.entrar_al_lobby()

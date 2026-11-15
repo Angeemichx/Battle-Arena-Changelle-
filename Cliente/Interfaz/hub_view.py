@@ -184,6 +184,18 @@ class HubView(ctk.CTk):
                 command=self.controller.mostrar_perfil,
             ).pack(pady=6)
 
+        #Estadísticas y ranking
+        ctk.CTkButton(
+            self.menu_frame,
+            text="  ESTADÍSTICAS Y RANKING",
+            width=280,
+            height=42,
+            font=("Segoe UI", 13),
+            fg_color=COLOR_SECUNDARIO,
+            hover_color=COLOR_SECUNDARIO_HOVER,
+            command=self.controller.mostrar_estadisticas,
+        ).pack(pady=6)
+
         # 4. Settings (Configuracion de Audio y Alarmas)
         if self.btn_img_audio:
             ctk.CTkButton(

@@ -13,6 +13,8 @@ class Partida:
         self.tiempo_limite_segundos = 0
         self.tiempo_inicio = 0
         self.en_tiempo_extra = False
+        self.on_fin = None 
+        self.duracion_total = 0
 
     #Agregar un jugador solo si hay espacio (pueden haber maximo 4 en partida)
     def agregar_jugador (self, jugador:Jugador):
@@ -26,6 +28,9 @@ class Partida:
     def iniciar_cronometro(self, minutos):
         self.tiempo_limite_segundos = minutos * 60
         self.tiempo_inicio = time.time()
+        self.duracion_total = minutos * 60
+        self.ganador = None
+        self.en_tiempo_extra = False
         self.activa = True
         print (f"[PARTIDA] Iniciada. Tiempo: {minutos} minutos.")
 
@@ -77,6 +82,8 @@ class Partida:
                 self._declarar_ganador()
 
     def _declarar_ganador(self):
+        if not self.activa:
+             return
         self.activa = False
         if not self.jugadores:
             return
@@ -85,6 +92,14 @@ class Partida:
         jugadores_ordenados = sorted(self.jugadores.values(), key=lambda j: j.puntaje, reverse=True)
         self.ganador = jugadores_ordenados[0].id_jugador
         print(f"[PARTIDA] Fin del juego. Ganador: Jugador {self.ganador}")
+        if self.on_fin:
+            try:
+                self.on_fin(
+                    [{"nombre": j.nombre, "puntos": int(j.puntaje)} for j in jugadores_ordenados],
+                    int(time.time() - self.tiempo_inicio),
+                )
+            except Exception as e:
+                print(f"[STATS] Error guardando partida: {e}", flush=True)
 
     #devolver el estado de la partida como un diccionario para enviarlo por red para los demas clientes
     def estado_actual(self):

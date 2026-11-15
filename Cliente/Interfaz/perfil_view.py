@@ -98,16 +98,6 @@ class PerfilView(ctk.CTk):
         fecha_creacion = "Activo en esta sesión"
         esta_verificado = True
 
-        if hasattr(self.controller, "auth_adapter") and self.controller.auth_adapter:
-            try:
-                c = self.controller.auth_adapter.repo.get_by_username_or_email(usuario_nom)
-                if c:
-                    email_usuario = c.email
-                    esta_verificado = c.verified
-                    if c.created_at:
-                        fecha_creacion = c.created_at.split("T")[0]
-            except Exception:
-                pass
 
         # 1. Marco con Previsualizacion del Avatar / Traje Hazmat Activo (CA-05.1)
         color_avatar = getattr(self.controller, "avatar_color", "#E63946")
@@ -187,6 +177,18 @@ class PerfilView(ctk.CTk):
         _fila("Rango de Tripulación:", "Piloto Certificado de Arena (Reactor Guard)", "#E9C46A")
         _fila("Fecha de Registro:", fecha_creacion, "#A8B4C4")
 
+        # Boton estadisticas y ranking global"
+        ctk.CTkButton(
+            frame,
+            text="Ver Estadísticas y Ranking",
+            width=220,
+            height=38,
+            font=("Segoe UI", 12, "bold"),
+            fg_color=COLOR_SECUNDARIO,
+            hover_color=COLOR_SECUNDARIO_HOVER,
+            command=self.controller.mostrar_estadisticas,
+        ).pack(pady=(12, 0))
+        
         # 3. Boton de Retorno al Menu Principal
         ctk.CTkButton(
             frame,

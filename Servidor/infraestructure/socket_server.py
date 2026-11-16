@@ -290,19 +290,30 @@ class ServidorJuego:
             if self.partida.activa:
                 self._era_activa = True
                 self.partida.verificar_tiempo()
+
                 if not self.partida.activa and self._era_activa:
                     self._era_activa = False
+
+                    #US-25 Mensaje de fin de partida a los clientes
+                    with self.lock:
+                        estado_final = self.partida.estado_actual()
+                    self._broadcast({"tipo": "fin_partida", "ganador": self.partida.ganador, "estado_final": estado_final})
+                    print("[SERVIDOR] ¡Partida finalizada!")
+
+                    #función de cierre para guardar estadísticas de la partida
                     self._cerrar_partida()
+
                 # Llamar al broadcast
-                self._broadcast(self.partida.estado_actual())
+                self._broadcast_estado()
                 
     def _cerrar_partida(self):
-        if not getattr(self, "on_fin_partida", None):
+        callback = getattr(self, "fin_partida", None)
+        if not callback:
             return  # las estadisticas las registra partida.on_fin (ver main_servidor)
         with self.lock:
             jugadores = [{"nombre": j.nombre, "puntos": int(j.puntaje)}
                          for j in self.partida.jugadores.values()]
         try:
-            self.on_fin_partida(jugadores)
+            callback(jugadores)
         except Exception as e:
             print(f"[STATS] Error guardando partida: {e}", flush=True)

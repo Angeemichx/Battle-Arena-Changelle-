@@ -12,3 +12,5 @@ class Cuenta:
     reset_code: str | None = None
     reset_expires: str | None = None
     created_at: str = ""
+    proveedor: str | None = None
+    proveedor_id: str | None = None

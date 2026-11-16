@@ -5,6 +5,10 @@ Incluye un unico boton 'ACCESO ADMIN' que lleva a una ventana de autorizacion
 donde se solicita la contrasena (oculta) y se elige entre Admin 1 o Admin 2,
 verificando si alguno ya esta conectado en otro ordenador.
 """
+import queue
+import threading
+import time
+import webbrowser
 import customtkinter as ctk
 from pathlib import Path
 from PIL import Image
@@ -159,6 +163,21 @@ class LoginView(ctk.CTk):
             command=self._ejecutar_login,
         )
         self.btn_login.pack(pady=(12, 8))
+ 
+        # Boton registro por github
+        self.btn_github = ctk.CTkButton(
+            self.frame,
+            text="ENTRAR CON GITHUB",
+            width=320,
+            height=38,
+            font=("Segoe UI", 12, "bold"),
+            fg_color="#24292F",
+            hover_color="#32383F",
+            command=self._login_github,
+        )
+        self.btn_github.pack(pady=(0, 8))
+        self._cola_github = queue.Queue()
+        self._github_activo = False
 
         # Enlace a Sign Up
         self.btn_signup = ctk.CTkButton(
@@ -207,6 +226,59 @@ class LoginView(ctk.CTk):
             command=self.controller.mostrar_admin_login,
         )
         self.btn_admin.pack(pady=(6, 10))
+
+    def _login_github(self) -> None:
+        if self._github_activo:
+            return
+        self._github_activo = True
+        self.btn_github.configure(state="disabled", text="Conectando con GitHub...")
+        threading.Thread(target=self._github_iniciar, daemon=True).start()
+        self.after(200, self._revisar_cola_github)
+
+    def _github_iniciar(self) -> None:
+        res = self.controller.auth_adapter.iniciar_oauth_github()
+        if not res.get("ok"):
+            self._cola_github.put(("error", res.get("msg", "Error con GitHub.")))
+            return
+        self._cola_github.put(("codigo", res))
+        device_code = res["device_code"]
+        intervalo = max(int(res.get("interval", 5)), 5)
+        for _ in range(60):
+            time.sleep(intervalo)
+            r = self.controller.auth_adapter.consultar_oauth_github(device_code)
+            if r.get("ok"):
+                self._cola_github.put(("ok", r))
+                return
+            if not r.get("pendiente"):
+                self._cola_github.put(("error", r.get("msg", "Autorización rechazada.")))
+                return
+        self._cola_github.put(("error", "Tiempo agotado. Intente de nuevo."))
+
+    def _revisar_cola_github(self) -> None:
+        try:
+            while True:
+                tipo, dato = self._cola_github.get_nowait()
+                if tipo == "codigo":
+                    webbrowser.open(dato["verification_uri"])
+                    self._mostrar_rechazo(
+                        f"Escriba este código en GitHub: {dato['user_code']}\n"
+                        "Esperando autorización..."
+                    )
+                elif tipo == "ok":
+                    self._github_activo = False
+                    self.controller.usuario_actual = dato["username"]
+                    self.controller.email_actual = dato.get("email", "")
+                    self.controller.mostrar_hub()
+                    return
+                else:
+                    self._github_activo = False
+                    self.btn_github.configure(state="normal", text="ENTRAR CON GITHUB")
+                    self._mostrar_rechazo(str(dato))
+                    return
+        except queue.Empty:
+            pass
+        if self._github_activo:
+            self.after(300, self._revisar_cola_github)
 
     def _toggle_ver(self) -> None:
         """
@@ -262,6 +334,7 @@ class LoginView(ctk.CTk):
         self.controller.usuario_actual = resultado["username"]
         self.controller.email_actual = resultado["email"]
         self.controller.mostrar_hub()
+    
 
 
 # =============================================================================

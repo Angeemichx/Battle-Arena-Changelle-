@@ -731,6 +731,13 @@ class AppController:
         self.ventana_actual = PerfilView(self)
         self.ventana_actual.mainloop()
 
+    # Ventana con las estadisticas del jugador
+    def mostrar_estadisticas(self) -> None:
+        self._cerrar_ventana_actual()
+        from Cliente.Interfaz.estadisticas_view import EstadisticasView
+        self.ventana_actual = EstadisticasView(self)
+        self.ventana_actual.mainloop()
+
     def mostrar_settings(self, origen: str = "hub") -> None:
         """
         Descripcion:

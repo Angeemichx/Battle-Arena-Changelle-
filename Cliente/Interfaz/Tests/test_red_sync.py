@@ -213,3 +213,33 @@ def test_otros_jugadores_sin_identificar_asume_que_soy_el_primero():
 def test_otros_jugadores_lista_vacia_o_basura():
     assert otros_jugadores([], 1) == []
     assert otros_jugadores(["x", None], 1) == []
+
+
+# ---------- blindaje de recepcion de paquetes TCP ----------
+def test_actualizar_estado_red_resiliente_a_malformados():
+    from Cliente.Interfaz.root import AppController
+    import pygame
+    if not pygame.get_init():
+        pygame.init()
+    controller = AppController()
+
+    # Paquetes anomalos o no diccionarios no deben lanzar excepcion
+    controller.actualizar_estado_red(None)
+    controller.actualizar_estado_red([])
+    controller.actualizar_estado_red("paquete corrupto")
+    controller.actualizar_estado_red(42)
+    controller.actualizar_estado_red({})
+
+    # Paquete accion con id de jugador malformado
+    controller.actualizar_estado_red({"tipo": "accion", "jugador": "no_es_entero"})
+    controller.actualizar_estado_red({"tipo": "accion", "jugador": []})
+    controller.actualizar_estado_red({"tipo": "accion", "jugador": {}})
+    controller.actualizar_estado_red({"tipo": "accion", "jugador": None})
+    controller.actualizar_estado_red({"tipo": "accion", "jugador": 2})
+    assert 2 in controller.acciones_remotas
+
+    # Paquete de mapa con invitado
+    controller.es_creador = False
+    controller.actualizar_estado_red({"mapa": "Laberinto Cerrado"})
+    assert controller.mapa_seleccionado == "Laberinto Cerrado"
+

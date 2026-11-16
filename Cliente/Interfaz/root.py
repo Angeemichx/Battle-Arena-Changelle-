@@ -459,6 +459,8 @@ class AppController:
         Restricciones:
             mensaje debe ser un diccionario valido; protege la escritura con estado_red_lock.
         """
+        if not isinstance(mensaje, dict):
+            return
         import time
         with self.estado_red_lock:
             tipo = mensaje.get("tipo")
@@ -469,7 +471,10 @@ class AppController:
             elif tipo == "accion":
                 id_j = mensaje.get("jugador")
                 if id_j is not None:
-                    self.acciones_remotas[int(id_j)] = time.time() + 0.5
+                    try:
+                        self.acciones_remotas[int(id_j)] = time.time() + 0.5
+                    except (ValueError, TypeError):
+                        pass
 
             # Sincronizacion de mapa seleccionado para clientes invitados (US-23)
             mapa_remoto = mensaje.get("mapa")

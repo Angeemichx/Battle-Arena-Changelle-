@@ -297,6 +297,7 @@ class ServidorJuego:
                     #US-25 Mensaje de fin de partida a los clientes
                     with self.lock:
                         estado_final = self.partida.estado_actual()
+                    print(f"[SERVIDOR] Mensaje de fin de partida enviado a los usuarios")#para prueba 4
                     self._broadcast({"tipo": "fin_partida", "ganador": self.partida.ganador, "estado_final": estado_final})
                     print("[SERVIDOR] ¡Partida finalizada!")
 
@@ -311,9 +312,11 @@ class ServidorJuego:
         if not callback:
             return  # las estadisticas las registra partida.on_fin (ver main_servidor)
         with self.lock:
+            #Calcular la duración restando el tiempo de inicio al actual
+            duracion_seg = int(time.time() - self.partida.tiempo_inicio) if self.partida.tiempo_inicio > 0 else 0
             jugadores = [{"nombre": j.nombre, "puntos": int(j.puntaje)}
                          for j in self.partida.jugadores.values()]
         try:
-            callback(jugadores)
+            callback(jugadores, duracion_seg)
         except Exception as e:
             print(f"[STATS] Error guardando partida: {e}", flush=True)

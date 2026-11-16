@@ -53,6 +53,12 @@ class HubView(ctk.CTk):
                     pass
             return None
 
+
+        self.title("Battle Arena - Menu Principal")
+        adaptar_ventana_ctk(self, porcentaje_w=0.40, porcentaje_h=0.72, min_w=480, min_h=580)
+        self.resizable(True, True)
+        ctk.set_appearance_mode("dark")
+        
         self.img_logo = _get_ui_icon("logo_letras_puras.png", size=(300, 58))
         self.btn_img_jugar = _get_ui_icon("btn_nuclear_jugar.png", size=(280, 46))
         self.btn_img_avatar = _get_ui_icon("btn_nuclear_avatar.png", size=(280, 46))
@@ -66,10 +72,6 @@ class HubView(ctk.CTk):
         self.ic_audio = _get_ui_icon("icon_audio.png", size=(24, 24))
         self.ic_salir = _get_ui_icon("icon_salir.png", size=(22, 22))
 
-        self.title("Battle Arena - Menu Principal")
-        adaptar_ventana_ctk(self, porcentaje_w=0.40, porcentaje_h=0.72, min_w=480, min_h=580)
-        self.resizable(True, True)
-        ctk.set_appearance_mode("dark")
 
         # Fondo ambiental de estacion nuclear
         ruta_bg = Path(__file__).resolve().parent.parent / "Recursos" / "Sprites" / "UI" / "bg_nuclear_station.png"

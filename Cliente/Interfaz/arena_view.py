@@ -291,6 +291,7 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
 
     while corriendo:
         dt = clock.tick(60) / 1000.0
+        ahora = time.time()
         w, h = screen.get_size()
         sx = w / 1280.0
         sy = h / 720.0
@@ -399,8 +400,6 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
 
             # Sincronizar posiciones/acciones de otros jugadores si el servidor TCP esta activo
             if getattr(controller, "estado_partida_red", None):
-                import time
-                ahora = time.time()
                 with controller.estado_red_lock:
                     # Se identifica a cada jugador por su id (no por su posicion en la lista)
                     aplicar_estado_remoto(

@@ -8,10 +8,10 @@ class EstadisticasView(ctk.CTk):
     def __init__(self, controller):
         super().__init__()
         self.controller = controller
+
         self.title("Battle Arena - Estadísticas")
-        adaptar_ventana_ctk(self, porcentaje_w=0.45, porcentaje_h=0.80, min_w=520, min_h=640)
-        self.resizable(True, True)
-        ctk.set_appearance_mode("dark")
+        adaptar_ventana_ctk(self,porcentaje_w=0.45,
+            porcentaje_h=0.80,min_w=520,min_h=640)
 
         frame = ctk.CTkFrame(self, fg_color="#141822", border_width=2,
                              border_color="#2A354D", corner_radius=12)
@@ -27,9 +27,9 @@ class EstadisticasView(ctk.CTk):
         self.caja_hist = ctk.CTkTextbox(frame, height=220, font=("Consolas", 12))
         self.caja_hist.pack(padx=20, fill="both", expand=True)
 
-        ctk.CTkButton(frame, text="Regresar", width=200, height=36,
+        ctk.CTkButton(frame, text="Regresar al Menú Principal", width=200, height=36,
                       fg_color=COLOR_PRIMARIO, hover_color=COLOR_PRIMARIO_HOVER,
-                      command=self.controller.mostrar_perfil).pack(pady=14)
+                      command=self.controller.mostrar_hub).pack(pady=14)
 
         self.after(100, self._cargar)
 

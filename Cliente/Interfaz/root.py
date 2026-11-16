@@ -597,15 +597,10 @@ class AppController:
         """
         if self.ventana_actual is not None:
             try:
-                self.ventana_actual.withdraw()
-                for after_id in list(self.ventana_actual.tk.call("after", "info")):
-                    try:
-                        self.ventana_actual.after_cancel(after_id)
-                    except Exception:
-                        pass
                 self.ventana_actual.destroy()
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[VENTANA] Error al cerrar: {e}")
+
             self.ventana_actual = None
 
     def mostrar_login(self) -> None:

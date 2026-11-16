@@ -9,6 +9,7 @@ services:
       - .env
     environment:
       DATA_FILE: /app/data/usuarios.json
+      HISTORIAL_FILE: /app/data/historial.json
     volumes:
       - ./Servidor/infraestructure/data:/app/data
     restart: unless-stopped

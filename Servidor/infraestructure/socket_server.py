@@ -181,9 +181,6 @@ class ServidorJuego:
                 else:
                     #alternativa, el jugador no estaba cerca del reactor 
                     self._enviar_a(self.clientes.get(id_jugador), {"tipo": "accion", "jugador": id_jugador, "mensaje": "Acércate más al reactor"})
-
-
-                    self._aplicar_datos_cliente(self.partida.jugadores[id_jugador])
            
         elif tipo == "identificar":
             nombre = str(mensaje.get("nombre", "")).strip()[:20]

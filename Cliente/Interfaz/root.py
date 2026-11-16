@@ -127,6 +127,7 @@ class AppController:
         self.estado_red_lock = threading.Lock()
         self.estado_partida_red: dict = {}
         self.acciones_remotas: dict[int, float] = {}
+        self.rechazo_red: tuple[str, float] | None = None  # (motivo, instante) de la ultima accion rechazada
 
         # 3. Audio Persistente en Segundo Plano (CA-09.10) y Record Local (US-26)
         self.volumen_musica = 50
@@ -471,6 +472,11 @@ class AppController:
                 self.id_jugador_red = mensaje.get("id_jugador")
             elif tipo == "estado":
                 self.estado_partida_red = mensaje
+            elif tipo == "rechazo":
+                # Motivo por el que el servidor no acepto mi accion (p. ej. fuera del reactor)
+                texto = mensaje.get("mensaje")
+                if isinstance(texto, str) and texto.strip():
+                    self.rechazo_red = (texto.strip(), time.time())
             elif tipo == "accion":
                 id_j = mensaje.get("jugador")
                 if id_j is not None:

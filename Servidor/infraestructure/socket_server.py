@@ -7,6 +7,13 @@ from Servidor.domain.jugador import Jugador
 from Servidor.domain.partida import Partida
 
 
+def _numero_o_none(valor):
+    """Numero valido (no bool) o None."""
+    if isinstance(valor, (int, float)) and not isinstance(valor, bool):
+        return valor
+    return None
+
+
 def _es_coordenada(valor) -> bool:
     """Coordenada valida: entero (no bool) dentro del mundo de juego."""
     return isinstance(valor, int) and not isinstance(valor, bool) and -10000 <= valor <= 10000
@@ -42,6 +49,11 @@ class ServidorJuego:
         hilo_tiempo = threading.Thread(target=self._reloj_partida)
         hilo_tiempo.daemon = True
         hilo_tiempo.start()
+
+        #Hilo de dinamicas: mueve guardianes y eventos varias veces por segundo
+        hilo_dinamicas = threading.Thread(target=self._bucle_dinamicas)
+        hilo_dinamicas.daemon = True
+        hilo_dinamicas.start()
 
         while True:
             socket_cliente, direccion = self.socket_servidor.accept()
@@ -137,7 +149,15 @@ class ServidorJuego:
 
         if tipo == "configurar_partida":
             minutos = mensaje.get("minutos", 5)
-            self.partida.iniciar_cronometro(minutos)
+            if not isinstance(minutos, (int, float)) or isinstance(minutos, bool) or not 0 < minutos <= 120:
+                minutos = 5
+            with self.lock:
+                self.partida.iniciar_cronometro(
+                    minutos,
+                    puntos=mensaje.get("puntos"),
+                    modo=mensaje.get("modo"),
+                    congelamiento=_numero_o_none(mensaje.get("congelamiento")),
+                )
             print (f"[SERVIDOR] Partida configurada para {minutos} minutos.")
             self._broadcast_estado()
 
@@ -147,40 +167,31 @@ class ServidorJuego:
             with self.lock:
                 if id_jugador in self.partida.jugadores:
                     jugador = self.partida.jugadores[id_jugador]
-                    if _es_coordenada(x) and _es_coordenada(y):
+                    # Un jugador congelado no puede moverse: el servidor ignora su posicion (CA-21.8)
+                    congelado = self.partida.dinamicas.esta_congelado(id_jugador)
+                    if _es_coordenada(x) and _es_coordenada(y) and not congelado:
                         jugador.x = x
                         jugador.y = y
                     self._aplicar_datos_cliente(jugador, mensaje)
             self._broadcast_estado()
 
-        #Acción para validar que el jugador está en la zona del reactor
-
+        #US-18: el servidor valida la extraccion (zona, estado, partida activa) y la paga por tiempo
         elif tipo == "accion":
-            exito_extraccion = False
             with self.lock:
-                if id_jugador in self.partida.jugadores:
-                    jugador = self.partida.jugadores[id_jugador]
-                    dx = jugador.x - 1800
-                    dy = jugador.y - 1300
-                    distancia = (dx ** 2 + dy ** 2) ** 0.5
-
-                    if distancia <= 210:
-                        # El jugador está dentro del área del reactor y puede extraer energía
-                        puntos_extraidos = 20
-                        self.partida.jugadores[id_jugador].puntaje += puntos_extraidos
-                        exito_extraccion = True
-                        print(f"[SERVIDOR] Jugador {id_jugador} extrajo energía. Puntos actuales: {jugador.puntaje}")
-
-                if exito_extraccion: #avisar sobre la estracción a los demás
-                    self._broadcast({
-                        "tipo": "accion", "jugador": id_jugador, "mensaje": "Extracción de energía exitosa, +20pts"})
-
-                    #Verificar si ganó la partida con esos puntos nuevos
-                    self.partida._verificar_ganador()
+                resultado = self.partida.extraer(id_jugador)
+                finalizo = self.partida.finalizada
+            if resultado is None:
+                return
+            if resultado.ok:
+                #avisar a los demas para que vean la extraccion (particulas) sin recargar
+                self._broadcast({
+                    "tipo": "accion", "jugador": id_jugador, "mensaje": "[EXTRAYENDO]"})
+                if resultado.puntos or finalizo:
                     self._broadcast_estado()
-                else:
-                    #alternativa, el jugador no estaba cerca del reactor 
-                    self._enviar_a(self.clientes.get(id_jugador), {"tipo": "accion", "jugador": id_jugador, "mensaje": "Acércate más al reactor"})
+            elif resultado.motivo:
+                #solo se le avisa a quien intento extraer, y explicando el motivo (CA-18.5)
+                self._enviar_a(self.clientes.get(id_jugador), {
+                    "tipo": "rechazo", "jugador": id_jugador, "mensaje": resultado.motivo})
            
         elif tipo == "identificar":
             nombre = str(mensaje.get("nombre", "")).strip()[:20]
@@ -259,6 +270,20 @@ class ServidorJuego:
         except Exception:
             pass
 
+    def _bucle_dinamicas(self):
+        """Avanza guardianes y eventos (~15 veces por segundo) y difunde el estado mientras hay partida."""
+        while True:
+            time.sleep(1 / 15)
+            try:
+                with self.lock:
+                    activa = self.partida.activa
+                    if activa:
+                        self.partida.tick()
+                if activa:
+                    self._broadcast_estado()
+            except Exception as e:
+                print(f"[SERVIDOR] Error en dinamicas: {e}", flush=True)
+
     def _reloj_partida(self):
         while True:
             time.sleep(1) # Espera 1 segundo
@@ -272,8 +297,8 @@ class ServidorJuego:
                 self._broadcast(self.partida.estado_actual())
                 
     def _cerrar_partida(self):
-        if not self.on_fin_partida:
-            return
+        if not getattr(self, "on_fin_partida", None):
+            return  # las estadisticas las registra partida.on_fin (ver main_servidor)
         with self.lock:
             jugadores = [{"nombre": j.nombre, "puntos": int(j.puntaje)}
                          for j in self.partida.jugadores.values()]

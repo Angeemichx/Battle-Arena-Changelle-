@@ -936,3 +936,32 @@ def test_blindaje_hex_to_rgb_y_guardianes_corruptos():
 
     world = pygame.Surface((400, 400))
     dibujar_guardianes_mundo(world, [{"x": "bad", "y": None}, {}, None, {"x": 100, "y": 100}], ahora=1.0)
+
+
+def test_dibujar_energia_adicional_solo_con_el_evento_correcto():
+    """US-22 / CA-22.1: el icono se dibuja unicamente para el evento de energia con posicion valida."""
+    import pygame
+    from Cliente.Interfaz.arena_view import dibujar_energia_adicional
+    pygame.init()
+    sup = pygame.Surface((400, 400))
+    sup.fill((0, 0, 0))
+    dibujar_energia_adicional(sup, None, 0.0)
+    dibujar_energia_adicional(sup, {"tipo": "doble_extraccion", "x": 200, "y": 200}, 0.0)
+    dibujar_energia_adicional(sup, {"tipo": "energia_adicional"}, 0.0)           # sin posicion
+    dibujar_energia_adicional(sup, {"tipo": "energia_adicional", "x": "a", "y": 1}, 0.0)
+    assert sup.get_at((200, 200))[:3] == (0, 0, 0)                                  # nada dibujado
+    dibujar_energia_adicional(sup, {"tipo": "energia_adicional", "x": 200, "y": 200}, 0.0)
+    assert sup.get_at((200, 200))[:3] != (0, 0, 0)
+
+
+def test_el_controlador_guarda_el_motivo_de_rechazo():
+    from Cliente.Interfaz.root import AppController
+    app = AppController.__new__(AppController)
+    import threading
+    app.estado_red_lock = threading.Lock()
+    app.estado_partida_red, app.acciones_remotas, app.rechazo_red = {}, {}, None
+    app.es_creador = True
+    app.actualizar_estado_red({"tipo": "rechazo", "mensaje": "Acercate al reactor para extraer"})
+    assert app.rechazo_red[0] == "Acercate al reactor para extraer"
+    app.actualizar_estado_red({"tipo": "rechazo", "mensaje": 5})                   # basura: se ignora
+    assert app.rechazo_red[0] == "Acercate al reactor para extraer"

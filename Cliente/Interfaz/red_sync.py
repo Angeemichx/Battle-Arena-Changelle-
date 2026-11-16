@@ -99,6 +99,20 @@ def aplicar_estado_remoto(
     return n
 
 
+def puntaje_servidor(jugadores_servidor: Iterable[Mapping], mi_id: int | None) -> int | None:
+    """
+    Puntaje oficial del jugador local segun el servidor (CA-19.6: servidor y clientes deben
+    coincidir). Devuelve None si no se sabe quien es el jugador local o el dato no es valido.
+    """
+    if mi_id is None or not isinstance(jugadores_servidor, (list, tuple)):
+        return None
+    for j in jugadores_servidor:
+        if isinstance(j, Mapping) and _entero(j.get("id")) == _entero(mi_id):
+            valor = _entero(j.get("puntaje"))
+            return valor if valor is not None and valor >= 0 else None
+    return None
+
+
 def direccion_de(dx: float, dy: float, anterior: str = "down") -> str:
     """Orientacion del sprite segun el desplazamiento (misma regla que usa el jugador local)."""
     if dx == 0 and dy == 0:

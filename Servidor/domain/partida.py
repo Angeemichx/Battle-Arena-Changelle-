@@ -1,4 +1,5 @@
 from Servidor.domain.jugador import Jugador
+from Servidor.domain.dinamicas import DinamicasPartida
 import time
 
 #Creacion de la clase para definir los metodos de las partidas como jugadores y estado
@@ -15,6 +16,9 @@ class Partida:
         self.en_tiempo_extra = False
         self.on_fin = None 
         self.duracion_total = 0
+        self.modo = None  # "tiempo", "puntos" o None (cualquiera de las dos condiciones)
+        self.dinamicas = DinamicasPartida()  # guardianes, eventos, congelamiento y extraccion
+        self.finalizada = False
 
     #Agregar un jugador solo si hay espacio (pueden haber maximo 4 en partida)
     def agregar_jugador (self, jugador:Jugador):
@@ -25,12 +29,24 @@ class Partida:
         self.jugadores[jugador.id_jugador] = jugador
         return True
 
-    def iniciar_cronometro(self, minutos):
+    def iniciar_cronometro(self, minutos, puntos=None, modo=None, congelamiento=None):
+        """
+        Arranca una partida nueva. `puntos` es la meta, `modo` la forma de terminar
+        ("tiempo", "puntos" o None = lo que ocurra primero) y `congelamiento` los segundos
+        que dura un congelamiento por guardian. Los puntajes empiezan en cero.
+        """
         self.tiempo_limite_segundos = minutos * 60
         self.tiempo_inicio = time.time()
         self.duracion_total = minutos * 60
+        if isinstance(puntos, int) and not isinstance(puntos, bool) and puntos > 0:
+            self.limite_puntos = puntos
+        self.modo = modo if modo in ("tiempo", "puntos") else None
         self.ganador = None
+        self.finalizada = False
         self.en_tiempo_extra = False
+        for j in self.jugadores.values():
+            j.puntaje = 0
+        self.dinamicas.reiniciar(self.duracion_total, congelamiento)
         self.activa = True
         print (f"[PARTIDA] Iniciada. Tiempo: {minutos} minutos.")
 
@@ -53,8 +69,27 @@ class Partida:
             return True
         return False
     
+    def extraer(self, id_jugador: int):
+        """US-18: valida y paga una extraccion segun las reglas de dinamicas.py."""
+        jugador = self.jugadores.get(id_jugador)
+        if jugador is None:
+            return None
+        resultado = self.dinamicas.extraer(jugador, self.activa)
+        if resultado.puntos:
+            self._verificar_ganador()
+        return resultado
+
+    def tick(self):
+        """Avanza guardianes y eventos; los bonus de energia tambien pueden dar la victoria."""
+        self.dinamicas.tick(self.jugadores, self.activa)
+        if self.dinamicas.bonus_pendientes:
+            self.dinamicas.bonus_pendientes.clear()
+            self._verificar_ganador()
+
     #Al alcanzar el limite de puntos el jugador gana 
     def _verificar_ganador (self):
+        if self.modo == "tiempo":
+            return  # en este modo la meta de puntos no termina la partida
         for jugador in self.jugadores.values():
               if jugador.puntaje >= self.limite_puntos:
                     self._declarar_ganador()
@@ -64,13 +99,15 @@ class Partida:
         if not self.activa:
             return
             
+        if self.modo == "puntos":
+            return  # en este modo solo termina al alcanzar la meta
         tiempo_transcurrido = time.time() - self.tiempo_inicio
         if tiempo_transcurrido >= self.tiempo_limite_segundos:
             puntajes = [j.puntaje for j in self.jugadores.values()]
             print(f"[PARTIDA] Tiempo terminado. Puntajes: {puntajes}")
 
             #Cada vez que haya empate se agrega tiempo extra de 2 minutos hasta que haya un ganador            
-            if len(puntajes) >= 2 and puntajes[0] == puntajes[1]:
+            if len(puntajes) >= 2 and puntajes.count(max(puntajes)) >= 2:
                 # Hay empate en tiempo normal
                 print("[PARTIDA] ¡Empate! Iniciando tiempo extra de 2 minutos.")
                 self.en_tiempo_extra = True
@@ -85,6 +122,8 @@ class Partida:
         if not self.activa:
              return
         self.activa = False
+        self.finalizada = True
+        self.dinamicas.tick(self.jugadores, False)  # CA-22.8: ningun evento sigue tras el final
         if not self.jugadores:
             return
             
@@ -108,10 +147,24 @@ class Partida:
                 tiempo_transcurrido = time.time() - self.tiempo_inicio
                 tiempo_restante = max(0, int(self.tiempo_limite_segundos - tiempo_transcurrido))
 
-          return {"tipo":"estado", 
-                  "jugadores":[j.to_dict() for j in self.jugadores.values()], 
+          jugadores = []
+          for j in self.jugadores.values():
+                datos = j.to_dict()
+                restante = self.dinamicas.congelados.get(j.id_jugador, 0.0)
+                datos["congelado"] = restante > 0
+                datos["congelado_restante"] = round(max(0.0, restante), 1)
+                jugadores.append(datos)
+
+          estado = {"tipo":"estado", 
+                  "jugadores": jugadores, 
                   "activa":self.activa,
                   "ganador":self.ganador, 
+                  "ganador_id": self.ganador,
+                  "partida_finalizada": self.finalizada,
+                  "puntos_meta": self.limite_puntos,
+                  "modo": self.modo,
                   "tiempo_restante": tiempo_restante, 
                   "tiempo_extra": self.en_tiempo_extra}
+          estado.update(self.dinamicas.estado_publico())
+          return estado
     

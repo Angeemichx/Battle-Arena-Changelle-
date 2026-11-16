@@ -9,7 +9,13 @@ import pytest
 from Cliente.Interfaz.arena_view import evaluar_condicion_victoria
 from Cliente.Interfaz.lobby_view import aplicar_opcion_configuracion
 from Cliente.Interfaz.victoria_view import (
-    calcular_ranking, mensaje_felicitacion, sintetizar_fanfarria,
+    calcular_ranking,
+    construir_podio,
+    evaluar_record_personal,
+    formatear_duracion,
+    mensaje_felicitacion,
+    mostrar_pantalla_victoria,
+    sintetizar_fanfarria,
 )
 
 
@@ -161,3 +167,71 @@ def test_fanfarria_mono_es_la_mitad():
 def test_fanfarria_rechaza_formato_invalido(fs, ch):
     with pytest.raises(ValueError):
         sintetizar_fanfarria(fs, ch)
+
+
+# ---------- US-26: podio dinamico, estadisticas y record ----------
+def test_podio_dinamico_se_adapta_a_cantidad_de_jugadores():
+    assert construir_podio([]) == []
+
+    r1 = calcular_ranking(J(200))
+    p1 = construir_podio(r1)
+    assert [s["lugar"] for s in p1] == [1]
+
+    r2 = calcular_ranking(J(100, 250))
+    p2 = construir_podio(r2)
+    assert [s["lugar"] for s in p2] == [2, 1]
+    assert p2[1]["jugador"]["nombre"] == "P1"
+
+    r4 = calcular_ranking(J(50, 300, 120, 200))
+    p4 = construir_podio(r4)
+    assert [s["lugar"] for s in p4] == [2, 1, 3]
+    assert [s["jugador"]["nombre"] for s in p4] == ["P3", "P1", "P2"]
+
+
+def test_formatear_duracion():
+    assert formatear_duracion(None) == "--:--"
+    assert formatear_duracion(-5) == "00:00"
+    assert formatear_duracion(125.9) == "02:05"
+
+
+def test_evaluar_record_personal():
+    jugs = [
+        {"nombre": "Local", "puntos": 420, "es_local": True},
+        {"nombre": "Rival", "puntos": 500, "es_local": False},
+    ]
+    es_nuevo, mejor = evaluar_record_personal(jugs, 300)
+    assert es_nuevo is True and mejor == 420
+
+    es_nuevo2, mejor2 = evaluar_record_personal(jugs, 450)
+    assert es_nuevo2 is False and mejor2 == 450
+
+
+def test_mostrar_pantalla_victoria_retorna_hub_con_escape():
+    import pygame
+    if not pygame.get_init():
+        pygame.init()
+    screen = pygame.display.set_mode((1280, 720))
+    ctrl = FakeController()
+    ctrl.mejor_puntaje = 100
+    jugs = [
+        {"nombre": "Local", "puntos": 320, "color": "#E63946", "es_local": True},
+        {"nombre": "Rival", "puntos": 200, "color": "#1D3557", "es_local": False},
+    ]
+
+    class FakeInput:
+        def poll(self):
+            return set()
+
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_ESCAPE))
+    res = mostrar_pantalla_victoria(
+        ctrl,
+        ganador=jugs[0],
+        jugadores=jugs,
+        screen=screen,
+        input_manager=FakeInput(),
+        duracion_seg=95.0,
+        mapa_nombre="Reactor Inestable",
+        modo_fin="tiempo",
+    )
+    assert res == "hub"
+    assert ctrl.mejor_puntaje == 320

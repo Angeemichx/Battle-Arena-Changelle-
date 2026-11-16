@@ -128,8 +128,9 @@ class AppController:
         self.estado_partida_red: dict = {}
         self.acciones_remotas: dict[int, float] = {}
 
-        # 3. Audio Persistente en Segundo Plano (CA-09.10)
+        # 3. Audio Persistente en Segundo Plano (CA-09.10) y Record Local (US-26)
         self.volumen_musica = 50
+        self.mejor_puntaje = 0
         self.cargar_config_local()
         self._iniciar_subsistema_audio()
 
@@ -285,6 +286,7 @@ class AppController:
                 self.avatar_color = datos.get("avatar_color", self.avatar_color)
                 self.avatar_imagen = datos.get("avatar_imagen", self.avatar_imagen)
                 self.volumen_musica = int(datos.get("volumen_musica", self.volumen_musica))
+                self.mejor_puntaje = max(0, int(datos.get("mejor_puntaje", getattr(self, "mejor_puntaje", 0))))
         except Exception:
             pass
 
@@ -307,6 +309,7 @@ class AppController:
                 "avatar_color": self.avatar_color,
                 "avatar_imagen": self.avatar_imagen,
                 "volumen_musica": self.volumen_musica,
+                "mejor_puntaje": int(getattr(self, "mejor_puntaje", 0)),
             }
             with open(CONFIG_PATH, "w", encoding="utf-8") as f:
                 json.dump(datos, f, indent=2, ensure_ascii=False)

@@ -266,11 +266,12 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
     velocidad_jugador = 7.0
     resto_pasos = 0.0  # fraccion de paso acumulada: la velocidad no depende de los FPS de la laptop
 
-    # Estado de Victoria y Desempate (US-16 / US-17)
+    # Estado de Victoria y Desempate (US-16 / US-17 / US-26)
     partida_finalizada = False
     jugador_ganador: dict | None = None
     banner_desempate_timer = 0.0
     rondas_desempate = 0
+    tiempo_jugado_seg = 0.0
 
     font_nombre = pygame.font.SysFont("Segoe UI", 14, bold=True)
     font_accion = pygame.font.SysFont("Segoe UI", 13, bold=True)
@@ -331,6 +332,7 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
                     menu_pausa_activo = False
 
         elif not partida_finalizada:
+            tiempo_jugado_seg += dt
             if modo_fin == "puntos":
                 tiempo_restante += dt
             else:
@@ -899,12 +901,23 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
     if accion_salida == "victoria":
         from Cliente.Interfaz.victoria_view import mostrar_pantalla_victoria
         accion_salida = mostrar_pantalla_victoria(
-            controller, jugador_ganador, jugadores, screen, avatar_img_surface, input_manager
+            controller,
+            jugador_ganador,
+            jugadores,
+            screen,
+            avatar_img_surface,
+            input_manager,
+            duracion_seg=tiempo_jugado_seg,
+            mapa_nombre=getattr(controller, "mapa_seleccionado", "Estacion Estandar"),
+            modo_fin=modo_fin,
         )
 
     controller.partida_en_curso = False  # la configuracion vuelve a ser editable
     if accion_salida == "lobby":
         from Cliente.Interfaz.lobby_view import iniciar_lobby_pygame
         iniciar_lobby_pygame(controller, screen=screen)
+    elif accion_salida == "hub":
+        pygame.display.quit()
+        controller.mostrar_hub()
     else:
         controller.cerrar_aplicacion()

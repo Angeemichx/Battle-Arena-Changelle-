@@ -217,6 +217,7 @@ def test_otros_jugadores_lista_vacia_o_basura():
 
 # ---------- blindaje de recepcion de paquetes TCP ----------
 def test_actualizar_estado_red_resiliente_a_malformados():
+    pytest.importorskip("customtkinter")  # root.py necesita la interfaz grafica; el CI no la tiene
     from Cliente.Interfaz.root import AppController
     import pygame
     if not pygame.get_init():
@@ -243,3 +244,20 @@ def test_actualizar_estado_red_resiliente_a_malformados():
     controller.actualizar_estado_red({"mapa": "Laberinto Cerrado"})
     assert controller.mapa_seleccionado == "Laberinto Cerrado"
 
+
+
+# ---------------- puntaje oficial del servidor (CA-19.6) ----------------
+def test_puntaje_servidor_toma_el_del_jugador_local():
+    from Cliente.Interfaz.red_sync import puntaje_servidor
+    jugadores = [{"id": 1, "puntaje": 40}, {"id": 2, "puntaje": 120}]
+    assert puntaje_servidor(jugadores, 2) == 120
+    assert puntaje_servidor(jugadores, 1) == 40
+
+
+@pytest.mark.parametrize("jugadores,mi_id", [
+    ([], 1), (None, 1), ([{"id": 1, "puntaje": 5}], None), ([{"id": 2, "puntaje": 5}], 1),
+    ([{"id": 1, "puntaje": -3}], 1), ([{"id": 1, "puntaje": "mucho"}], 1), ("texto", 1), ([None, 7], 1),
+])
+def test_puntaje_servidor_devuelve_none_si_no_hay_dato_valido(jugadores, mi_id):
+    from Cliente.Interfaz.red_sync import puntaje_servidor
+    assert puntaje_servidor(jugadores, mi_id) is None

@@ -245,6 +245,32 @@ def dibujar_guardianes_mundo(surface: pygame.Surface, guardianes: list[dict], ah
         pygame.draw.circle(surface, (255, 200, 200), centro_dron, 3)
 
 
+def dibujar_energia_adicional(surface: pygame.Surface, evento: dict | None, ahora: float) -> None:
+    """
+    Descripcion:
+        Dibuja el icono del evento "Energia adicional" (US-22 / CA-22.1) en la posicion que
+        indica el servidor, con un pulso para que se note en el mapa.
+    Entradas:
+        surface (pygame.Surface): Superficie del mundo.
+        evento (dict | None): evento_especial del estado; solo se dibuja si es energia_adicional.
+        ahora (float): Tiempo para animar el pulso.
+    Salidas:
+        None: Dibuja directamente sobre 'surface'.
+    """
+    if not isinstance(evento, dict) or evento.get("tipo") != "energia_adicional":
+        return
+    try:
+        ex, ey = int(float(evento["x"])), int(float(evento["y"]))
+    except (KeyError, TypeError, ValueError):
+        return
+    pulso = 0.5 + 0.5 * math.sin(ahora * 6.0)
+    pygame.draw.circle(surface, (255, 235, 90), (ex, ey), int(34 + 10 * pulso), 3)
+    pygame.draw.circle(surface, (255, 200, 40), (ex, ey), 20)
+    pygame.draw.circle(surface, (255, 250, 200), (ex, ey), 9)
+    # rayo estilizado en el centro del icono
+    pygame.draw.polygon(surface, (120, 70, 0), [(ex + 3, ey - 14), (ex - 8, ey + 2), (ex, ey + 2), (ex - 3, ey + 14), (ex + 8, ey - 2), (ex, ey - 2)])
+
+
 def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> None:
     """
     Descripcion:
@@ -329,7 +355,7 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
 
     # Punto de salida segun el orden de llegada al servidor: asi todos los clientes colocan
     # a cada jugador en el mismo lugar (si aun no hay identificacion se conservan los de arriba)
-    from Cliente.Interfaz.red_sync import aplicar_estado_remoto, asignar_spawns, suavizar_remotos
+    from Cliente.Interfaz.red_sync import puntaje_servidor, aplicar_estado_remoto, asignar_spawns, suavizar_remotos
     with controller.estado_red_lock:
         estado_inicial = list((getattr(controller, "estado_partida_red", None) or {}).get("jugadores", []))
     spawns = asignar_spawns(estado_inicial, getattr(controller, "id_jugador_red", None))
@@ -501,12 +527,14 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
                 elif estado_reactor in ("sobrecargado", "desactivado"):
                     _agregar_toast_unico(toasts, "REACTOR EN SOBRECARGA", ahora, duracion=2.0, tipo="alerta")
                 elif esta_en_zona_extraccion(jugador_local["rect"]):
-                    # Si mantiene presionado el 5to boton dentro de la zona del Reactor, suma 40 pts por cada segundo
-                    jugador_local["acum_reactor"] += dt
-                    while jugador_local["acum_reactor"] >= 1.0:
-                        jugador_local["acum_reactor"] -= 1.0
-                        jugador_local["segundos_reactor"] += 1
-                        jugador_local["puntos"] = jugador_local["segundos_reactor"] * 40
+                    # Con servidor, los puntos los decide el servidor (CA-19.6); sin servidor (modo local) se
+                    # cuenta aqui: 40 pts por cada segundo con el 5to boton dentro de la zona del Reactor
+                    if not getattr(controller, "estado_partida_red", None):
+                        jugador_local["acum_reactor"] += dt
+                        while jugador_local["acum_reactor"] >= 1.0:
+                            jugador_local["acum_reactor"] -= 1.0
+                            jugador_local["segundos_reactor"] += 1
+                            jugador_local["puntos"] = jugador_local["segundos_reactor"] * 40
                 else:
                     # Toast notorio de rechazo de accion fuera de rango (CA-24.6)
                     _agregar_toast_unico(toasts, "FUERA DE RANGO DEL REACTOR", ahora, duracion=2.0, tipo="advertencia")
@@ -532,6 +560,16 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
                         toasts,
                         ahora,
                     )
+                    # El puntaje propio tambien viene del servidor: asi coincide en todas las pantallas
+                    pts_oficial = puntaje_servidor(
+                        estado_red_snap.get("jugadores"), getattr(controller, "id_jugador_red", None)
+                    )
+                    if pts_oficial is not None:
+                        jugador_local["puntos"] = pts_oficial
+                    # Motivo por el que el servidor rechazo mi ultima accion (CA-18.5 / CA-24.6)
+                    rechazo = getattr(controller, "rechazo_red", None)
+                    if rechazo and time.time() - rechazo[1] < 2.0:
+                        _agregar_toast_unico(toasts, rechazo[0], ahora, duracion=2.0, tipo="advertencia")
                     cierre_servidor, ganador_servidor, record_servidor = verificar_cierre_servidor(
                         estado_red_snap, jugadores
                     )
@@ -666,6 +704,7 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
                 {"id": 4, "x": 1800 + math.cos(ahora * 0.35 + 4.71) * 750, "y": 1300 + math.sin(ahora * 0.35 + 4.71) * 550},
             ]
         dibujar_guardianes_mundo(world_surface, guardianes_actuales, ahora)
+        dibujar_energia_adicional(world_surface, evento_especial, ahora)
 
         # E. Jugadores (Trajes Hazmat) y Particulas de Extraccion Animadas (US-14)
         for jug in jugadores:

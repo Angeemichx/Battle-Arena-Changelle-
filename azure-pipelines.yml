@@ -25,7 +25,7 @@ steps:
   - script: python -m pytest Servidor/pruebas/prueba_auth.py -v
     displayName: Pruebas de autenticación (servidor)
 
-  - script: python -m pytest Servidor/pruebas/test_partida.py Servidor/pruebas/test_movimiento_red.py -v
+  - script: python -m pytest Servidor/pruebas/test_partida.py Servidor/pruebas/test_dinamicas.py Servidor/pruebas/test_movimiento_red.py -v
     displayName: Pruebas de partida y movimiento entre jugadores (servidor)
 
   - script: |

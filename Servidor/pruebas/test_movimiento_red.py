@@ -20,6 +20,7 @@ class Cliente:
         self.sock = socket.create_connection(("127.0.0.1", puerto), timeout=2)
         self.sock.settimeout(None)
         self.id, self.estado, self.lineas_invalidas = None, {}, 0
+        self.rechazos = []
         threading.Thread(target=self._leer, daemon=True).start()
         if nombre:
             self.enviar({"tipo": "identificar", "nombre": nombre})
@@ -46,6 +47,8 @@ class Cliente:
                         self.id = m["id_jugador"]
                     elif m.get("tipo") == "estado":
                         self.estado = m
+                    elif m.get("tipo") == "rechazo":
+                        self.rechazos.append(m["mensaje"])
         except OSError:
             pass
 
@@ -100,13 +103,14 @@ def test_ambos_jugadores_reciben_la_posicion_del_otro(servidor):
     assert esperar(lambda: b.jugador(a.id) and b.jugador(a.id)["x"] == 500 and b.jugador(b.id)["y"] == 900)
 
 
-def test_el_servidor_respeta_el_puntaje_del_cliente(servidor):
+def test_el_servidor_ignora_el_puntaje_que_informa_el_cliente(servidor):
+    """CA-19.4 / CA-21.8: el puntaje lo decide el servidor, no el cliente."""
     _, a, b = dos(servidor)
-    for _ in range(60):  # un segundo de movimiento a 60 mensajes/s
-        a.enviar({"tipo": "movimiento", "x": 10, "y": 10, "puntaje": 10})
-    assert esperar(lambda: b.jugador(a.id) and b.jugador(a.id)["puntaje"] == 10)
+    for _ in range(60):
+        a.enviar({"tipo": "movimiento", "x": 10, "y": 10, "puntaje": 9999})
+    assert esperar(lambda: b.jugador(a.id) and b.jugador(a.id)["x"] == 10)
     time.sleep(0.2)
-    assert b.jugador(a.id)["puntaje"] == 10  # no se infla con cada mensaje
+    assert b.jugador(a.id)["puntaje"] == 0
 
 
 def test_moverse_no_suma_puntos(servidor):
@@ -117,10 +121,111 @@ def test_moverse_no_suma_puntos(servidor):
     assert b.jugador(a.id)["puntaje"] == 0  # moverse no da puntos
 
 
-def test_puntaje_por_accion_en_el_reactor(servidor):
+def _iniciar_partida(srv, a, **extra):
+    a.enviar({"tipo": "configurar_partida", "minutos": 5, **extra})
+    assert esperar(lambda: a.estado.get("activa"))
+
+
+def _al_reactor(a, b):
+    a.enviar({"tipo": "movimiento", "x": 1800 - 24, "y": 1300 - 24})
+    assert esperar(lambda: b.jugador(a.id) and b.jugador(a.id)["x"] == 1776)
+
+
+def test_extraer_en_el_reactor_se_paga_por_tiempo(servidor):
+    """US-18: +40 pts/s medidos por el servidor, sin importar cuantos mensajes lleguen."""
+    srv, a, b = dos(servidor)
+    _iniciar_partida(srv, a, puntos=500, modo="puntos")
+    _al_reactor(a, b)
+    fin = time.time() + 1.0
+    while time.time() < fin:
+        a.enviar({"tipo": "accion", "mensaje": "[EXTRAYENDO]"})
+        time.sleep(0.016)
+    time.sleep(0.2)
+    pts = b.jugador(a.id)["puntaje"]
+    assert 25 <= pts <= 50
+
+
+def test_mensajes_de_extraccion_duplicados_no_inflan_el_puntaje(servidor):
+    srv, a, b = dos(servidor)
+    _iniciar_partida(srv, a, puntos=500, modo="puntos")
+    _al_reactor(a, b)
+    for _ in range(200):                      # 200 copias casi simultaneas
+        a.enviar({"tipo": "accion", "mensaje": "[EXTRAYENDO]"})
+    time.sleep(0.4)
+    assert b.jugador(a.id)["puntaje"] <= 16   # a lo sumo lo que avanzo el reloj (~0.4 s x 40)
+
+
+def test_extraer_lejos_del_reactor_se_rechaza_con_motivo(servidor):
+    srv, a, b = dos(servidor)
+    _iniciar_partida(srv, a)
+    a.enviar({"tipo": "movimiento", "x": 10, "y": 10})
+    a.enviar({"tipo": "accion", "mensaje": "[EXTRAYENDO]"})
+    assert esperar(lambda: a.rechazos)
+    assert "reactor" in a.rechazos[0].lower()
+    assert b.jugador(a.id)["puntaje"] == 0 and not b.rechazos
+
+
+def test_extraer_sin_partida_activa_se_rechaza(servidor):
     _, a, b = dos(servidor)
-    a.enviar({"tipo": "accion", "mensaje": "[EXTRAYENDO]", "puntaje": 80})
-    assert esperar(lambda: b.jugador(a.id) and b.jugador(a.id)["puntaje"] == 80)
+    _al_reactor(a, b)
+    a.enviar({"tipo": "accion", "mensaje": "[EXTRAYENDO]"})
+    assert esperar(lambda: a.rechazos and "activa" in a.rechazos[0])
+    assert b.jugador(a.id)["puntaje"] == 0
+
+
+def test_el_estado_incluye_guardianes_reactor_y_evento(servidor):
+    srv, a, b = dos(servidor)
+    _iniciar_partida(srv, a)
+    assert esperar(lambda: len(b.estado.get("guardianes", [])) == 4)
+    assert b.estado["estado_reactor"] == "disponible"
+    assert "evento_especial" in b.estado
+
+
+def test_los_guardianes_se_mueven_y_todos_ven_lo_mismo(servidor):
+    srv, a, b = dos(servidor)
+    _iniciar_partida(srv, a)
+    assert esperar(lambda: a.estado.get("guardianes") and b.estado.get("guardianes"))
+    antes = [(g["x"], g["y"]) for g in b.estado["guardianes"]]
+    time.sleep(0.7)
+    assert [(g["x"], g["y"]) for g in b.estado["guardianes"]] != antes
+
+
+def test_jugador_congelado_no_se_mueve_ni_extrae(servidor):
+    """US-21 / CA-21.8: el congelamiento lo aplica el servidor y el cliente no puede ignorarlo."""
+    srv, a, b = dos(servidor)
+    _iniciar_partida(srv, a, puntos=500, modo="puntos")
+    _al_reactor(a, b)
+    with srv.lock:
+        srv.partida.dinamicas.congelar(a.id, 30)
+    assert esperar(lambda: b.jugador(a.id)["congelado"])
+    a.enviar({"tipo": "movimiento", "x": 3000, "y": 2000})
+    time.sleep(0.3)
+    assert b.jugador(a.id)["x"] == 1776                 # no se movio
+    a.enviar({"tipo": "accion", "mensaje": "[EXTRAYENDO]"})
+    assert esperar(lambda: a.rechazos and "congelado" in a.rechazos[0].lower())
+
+
+def test_configurar_partida_aplica_meta_y_modo(servidor):
+    srv, a, b = dos(servidor)
+    _iniciar_partida(srv, a, puntos=300, modo="puntos", congelamiento=7)
+    assert esperar(lambda: b.estado.get("puntos_meta") == 300 and b.estado.get("modo") == "puntos")
+    assert srv.partida.dinamicas.congelamiento == 7
+
+
+def test_al_llegar_a_la_meta_el_servidor_cierra_y_avisa(servidor):
+    srv, a, b = dos(servidor)
+    _iniciar_partida(srv, a, puntos=20, modo="puntos")
+    _al_reactor(a, b)
+    fin = time.time() + 3
+    while time.time() < fin and not b.estado.get("partida_finalizada"):
+        a.enviar({"tipo": "accion", "mensaje": "[EXTRAYENDO]"})
+        time.sleep(0.016)
+    assert esperar(lambda: a.estado.get("partida_finalizada") and b.estado.get("partida_finalizada"))
+    assert a.estado["ganador_id"] == a.id == b.estado["ganador_id"]
+    puntos = b.jugador(a.id)["puntaje"]
+    a.enviar({"tipo": "accion", "mensaje": "[EXTRAYENDO]"})
+    time.sleep(0.2)
+    assert b.jugador(a.id)["puntaje"] == puntos         # CA-25.3: nada cambia tras el final
 
 
 def test_el_color_se_comparte(servidor):
@@ -147,10 +252,10 @@ def test_mensajes_simultaneos_llegan_enteros(servidor):
 @pytest.mark.parametrize("x,y", [("abc", 5), (None, None), (True, 5), (10**9, 5), (5, -10**9), (1.5, 2)])
 def test_coordenadas_invalidas_no_mueven_ni_rompen_al_jugador(servidor, x, y):
     _, a, b = dos(servidor)
-    a.enviar({"tipo": "movimiento", "x": 100, "y": 100, "puntaje": 1})
+    a.enviar({"tipo": "movimiento", "x": 100, "y": 100, "color": "#111111"})
     assert esperar(lambda: b.jugador(a.id) and b.jugador(a.id)["x"] == 100)
-    a.enviar({"tipo": "movimiento", "x": x, "y": y, "puntaje": 2})
-    assert esperar(lambda: b.jugador(a.id)["puntaje"] == 2)
+    a.enviar({"tipo": "movimiento", "x": x, "y": y, "color": "#222222"})
+    assert esperar(lambda: b.jugador(a.id)["color"] == "#222222")  # el mensaje si se proceso
     assert (b.jugador(a.id)["x"], b.jugador(a.id)["y"]) == (100, 100)
 
 

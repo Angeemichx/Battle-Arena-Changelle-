@@ -166,6 +166,48 @@ def sincronizar_estados_y_eventos_red(
     return estado_reactor, evento_especial
 
 
+def verificar_cierre_servidor(
+    estado_red: dict | None,
+    jugadores: list[dict],
+) -> tuple[bool, dict | None, bool]:
+    """
+    Evalua si el servidor confirmo el cierre oficial de la partida (CA-26.8 / CA-26.9).
+    Retorna (finalizada, ganador, nuevo_record).
+    """
+    if not isinstance(estado_red, dict):
+        return False, None, False
+
+    finalizada = bool(
+        estado_red.get("partida_finalizada")
+        or estado_red.get("finalizada")
+        or str(estado_red.get("estado_partida", "")).lower() == "finalizada"
+    )
+    if not finalizada:
+        return False, None, False
+
+    ganador_red = estado_red.get("ganador")
+    ganador_id = estado_red.get("ganador_id")
+    ganador: dict | None = None
+
+    if isinstance(ganador_red, dict):
+        gid = ganador_red.get("id")
+        if gid is not None:
+            ganador = next((j for j in jugadores if j.get("id") == gid), None)
+        if ganador is None:
+            ganador = ganador_red
+    elif ganador_id is not None:
+        ganador = next((j for j in jugadores if j.get("id") == ganador_id), None)
+
+    if ganador is None and jugadores:
+        ganador = max(jugadores, key=lambda j: j.get("puntos", 0))
+
+    nuevo_record = bool(
+        estado_red.get("nuevo_record")
+        or (isinstance(ganador, dict) and ganador.get("nuevo_record"))
+    )
+    return True, ganador, nuevo_record
+
+
 def dibujar_guardianes_mundo(surface: pygame.Surface, guardianes: list[dict], ahora: float) -> None:
     """
     Descripcion:
@@ -323,6 +365,7 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
     # Estado de Victoria y Desempate (US-16 / US-17 / US-26)
     partida_finalizada = False
     jugador_ganador: dict | None = None
+    record_servidor = False
     banner_desempate_timer = 0.0
     rondas_desempate = 0
     tiempo_jugado_seg = 0.0
@@ -464,6 +507,8 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
                     _agregar_toast_unico(toasts, "FUERA DE RANGO DEL REACTOR", ahora, duracion=2.0, tipo="advertencia")
 
             # Sincronizar posiciones/acciones y eventos de red si el servidor TCP esta activo
+            cierre_servidor = False
+            ganador_servidor = None
             if getattr(controller, "estado_partida_red", None):
                 with controller.estado_red_lock:
                     estado_red_snap = dict(controller.estado_partida_red)
@@ -482,13 +527,19 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
                         toasts,
                         ahora,
                     )
+                    cierre_servidor, ganador_servidor, record_servidor = verificar_cierre_servidor(
+                        estado_red_snap, jugadores
+                    )
             # El rival se desliza hacia su ultima posicion en vez de saltar entre mensajes
             suavizar_remotos(jugadores, dt)
 
-            # Evaluar Condicion de Victoria y Desempate Automatico (US-16 / CA-16.4)
-            terminada, ganador, hubo_desempate, nuevo_t = evaluar_condicion_victoria(
-                jugadores, tiempo_restante, puntos_meta, modo_fin
-            )
+            # Evaluar Condicion de Victoria (prioridad al cierre oficial del servidor CA-26.8)
+            if cierre_servidor and ganador_servidor is not None:
+                terminada, ganador, hubo_desempate, nuevo_t = True, ganador_servidor, False, tiempo_restante
+            else:
+                terminada, ganador, hubo_desempate, nuevo_t = evaluar_condicion_victoria(
+                    jugadores, tiempo_restante, puntos_meta, modo_fin
+                )
             if hubo_desempate:
                 tiempo_restante = nuevo_t
                 rondas_desempate += 1
@@ -980,6 +1031,7 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
             duracion_seg=tiempo_jugado_seg,
             mapa_nombre=getattr(controller, "mapa_seleccionado", "Estacion Estandar"),
             modo_fin=modo_fin,
+            nuevo_record_servidor=record_servidor,
         )
 
     controller.partida_en_curso = False  # la configuracion vuelve a ser editable

@@ -235,3 +235,19 @@ def test_mostrar_pantalla_victoria_retorna_hub_con_escape():
     )
     assert res == "hub"
     assert ctrl.mejor_puntaje == 320
+
+
+def test_verificar_cierre_servidor():
+    from Cliente.Interfaz.arena_view import verificar_cierre_servidor
+
+    jugs = [{"id": 1, "nombre": "P1", "puntos": 120}, {"id": 2, "nombre": "P2", "puntos": 300}]
+    assert verificar_cierre_servidor(None, jugs) == (False, None, False)
+    assert verificar_cierre_servidor({"partida_finalizada": False}, jugs) == (False, None, False)
+
+    fin, gan, rec = verificar_cierre_servidor(
+        {"partida_finalizada": True, "ganador_id": 2, "nuevo_record": True},
+        jugs,
+    )
+    assert fin is True
+    assert gan is not None and gan["id"] == 2
+    assert rec is True

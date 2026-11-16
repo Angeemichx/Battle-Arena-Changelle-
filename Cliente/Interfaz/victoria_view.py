@@ -217,6 +217,7 @@ def mostrar_pantalla_victoria(
     duracion_seg: float | None = None,
     mapa_nombre: str | None = None,
     modo_fin: str | None = None,
+    nuevo_record_servidor: bool = False,
 ) -> str:
     """
     Descripcion:
@@ -243,14 +244,15 @@ def mostrar_pantalla_victoria(
     sprites_chars = _cargar_sprites_personajes()
 
     mejor_prev = int(getattr(controller, "mejor_puntaje", 0) or 0)
-    es_nuevo_record, nuevo_mejor = evaluar_record_personal(jugadores, mejor_prev)
-    if es_nuevo_record:
+    es_record_local, nuevo_mejor = evaluar_record_personal(jugadores, mejor_prev)
+    if es_record_local:
         try:
             controller.mejor_puntaje = nuevo_mejor
             if hasattr(controller, "guardar_config_local"):
                 controller.guardar_config_local()
         except Exception:
             pass
+    es_nuevo_record = es_record_local or bool(nuevo_record_servidor) or bool((ganador or {}).get("nuevo_record"))
 
     mapa_txt = str(mapa_nombre or getattr(controller, "mapa_seleccionado", "Estacion Estandar"))
     modo_raw = modo_fin if modo_fin is not None else getattr(controller, "modo_fin", None)

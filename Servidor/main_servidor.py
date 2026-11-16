@@ -125,7 +125,7 @@ def main():
         return {"ok": False, "msg": "Acción desconocida"}
 
     # Arrancar (una sola vez, al final)
-    servidor = ServidorJuego(host, port, manejar)
+    servidor = ServidorJuego(host, port, manejar, fin_partida=stats.registrar_partida)
     servidor.partida.on_fin = stats.registrar_partida
 
     print(f"Datos en: {ruta}", flush=True)

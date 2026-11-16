@@ -112,6 +112,60 @@ def evaluar_condicion_victoria(
     return True, lideres[0], False, tiempo_restante
 
 
+def _agregar_toast_unico(
+    toasts: list[dict],
+    mensaje: str,
+    ahora: float,
+    duracion: float = 2.0,
+    tipo: str = "advertencia",
+) -> None:
+    """Agrega un toast si no hay otro identico activo actualmente."""
+    if not mensaje:
+        return
+    if not any(t.get("mensaje") == mensaje and t.get("expira", 0) > ahora for t in toasts):
+        toasts.append({"mensaje": mensaje, "expira": ahora + duracion, "tipo": tipo})
+
+
+def sincronizar_estados_y_eventos_red(
+    estado_red: dict | None,
+    jugadores: list[dict],
+    mi_id: int | None,
+    toasts: list[dict],
+    ahora: float,
+) -> tuple[str, dict | None]:
+    """
+    Lee de forma reactiva estado del reactor, eventos especiales, congelamiento/trampas
+    y notificaciones de rechazo enviados por el servidor en estado_partida_red.
+    """
+    if not isinstance(estado_red, dict):
+        return "disponible", None
+
+    estado_reactor = str(estado_red.get("estado_reactor") or "disponible").lower()
+    ev_raw = estado_red.get("evento_especial")
+    evento_especial = ev_raw if isinstance(ev_raw, dict) and (ev_raw.get("activo") or ev_raw.get("nombre")) else None
+    if evento_especial is not None and "activo" not in evento_especial:
+        evento_especial = {**evento_especial, "activo": True}
+
+    jugs_red = estado_red.get("jugadores")
+    if isinstance(jugs_red, list):
+        por_id = {jr.get("id"): jr for jr in jugs_red if isinstance(jr, dict) and jr.get("id") is not None}
+        for jug in jugadores:
+            j_red = por_id.get(jug.get("id"))
+            if j_red is None and jug.get("es_local") and mi_id is not None:
+                j_red = por_id.get(mi_id)
+            if j_red is not None:
+                if "congelado" in j_red:
+                    jug["congelado"] = bool(j_red["congelado"])
+                if j_red.get("trampa_activa"):
+                    jug["trampa_activa"] = j_red["trampa_activa"]
+
+    msg_rechazo = estado_red.get("mensaje_rechazo") or estado_red.get("toast")
+    if isinstance(msg_rechazo, str) and msg_rechazo.strip():
+        _agregar_toast_unico(toasts, msg_rechazo.strip(), ahora, duracion=2.5, tipo="alerta")
+
+    return estado_reactor, evento_especial
+
+
 def dibujar_guardianes_mundo(surface: pygame.Surface, guardianes: list[dict], ahora: float) -> None:
     """
     Descripcion:
@@ -346,10 +400,13 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
 
             # Deteccion de trampas activas sobre el avatar local (US-20, CA-20.5)
             trampa_local = detectar_trampa_activa(jugador_local["rect"], obstaculos_arena.get("trampas", []))
-            jugador_local["trampa_activa"] = trampa_local
-            if trampa_local == "jaula":
+            if trampa_local or not getattr(controller, "estado_partida_red", None):
+                jugador_local["trampa_activa"] = trampa_local
+            trampa_activa_actual = jugador_local.get("trampa_activa")
+
+            if jugador_local.get("congelado") or trampa_activa_actual == "jaula":
                 velocidad_jugador = 0.0
-            elif trampa_local == "charco":
+            elif trampa_activa_actual == "charco":
                 velocidad_jugador = 3.5
             else:
                 velocidad_jugador = 7.0
@@ -364,32 +421,39 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
             if not accion_activa:
                 dx_unit, dy_unit = direction_from(comandos_actuales)
                 if (dx_unit != 0 or dy_unit != 0) and n_pasos > 0:
-                    # Actualizar orientacion del sprite del jugador
-                    if abs(dx_unit) >= abs(dy_unit):
-                        jugador_local["direccion"] = "right" if dx_unit > 0 else "left"
+                    if jugador_local.get("congelado"):
+                        _agregar_toast_unico(toasts, "ESTAS CONGELADO", ahora, duracion=1.8, tipo="alerta")
                     else:
-                        jugador_local["direccion"] = "down" if dy_unit > 0 else "up"
+                        # Actualizar orientacion del sprite del jugador
+                        if abs(dx_unit) >= abs(dy_unit):
+                            jugador_local["direccion"] = "right" if dx_unit > 0 else "left"
+                        else:
+                            jugador_local["direccion"] = "down" if dy_unit > 0 else "up"
 
-                    pos_previa = jugador_local["rect"].topleft
-                    for _ in range(n_pasos):
-                        jugador_local["rect"] = mover_con_colisiones(
-                            jugador_local["rect"],
-                            dx_unit * velocidad_jugador,
-                            dy_unit * velocidad_jugador,
-                            obstaculos_totales,
-                            limites_mundo,
-                            circulo_reactor=circulo_reactor_colision,
-                        )
-                    # Moverse no da puntos: solo se informa la nueva posicion
-                    if jugador_local["rect"].topleft != pos_previa:
-                        controller.enviar_movimiento_red(
-                            jugador_local["rect"].x, jugador_local["rect"].y,
-                            jugador_local["puntos"], jugador_local["color"],
-                        )
+                        pos_previa = jugador_local["rect"].topleft
+                        for _ in range(n_pasos):
+                            jugador_local["rect"] = mover_con_colisiones(
+                                jugador_local["rect"],
+                                dx_unit * velocidad_jugador,
+                                dy_unit * velocidad_jugador,
+                                obstaculos_totales,
+                                limites_mundo,
+                                circulo_reactor=circulo_reactor_colision,
+                            )
+                        # Moverse no da puntos: solo se informa la nueva posicion
+                        if jugador_local["rect"].topleft != pos_previa:
+                            controller.enviar_movimiento_red(
+                                jugador_local["rect"].x, jugador_local["rect"].y,
+                                jugador_local["puntos"], jugador_local["color"],
+                            )
             else:
                 controller.enviar_accion_red("[EXTRAYENDO]", jugador_local["puntos"])
-                # Si mantiene presionado el 5to boton dentro de la zona del Reactor, suma 40 pts por cada segundo
-                if esta_en_zona_extraccion(jugador_local["rect"]):
+                if jugador_local.get("congelado"):
+                    _agregar_toast_unico(toasts, "ESTAS CONGELADO", ahora, duracion=1.8, tipo="alerta")
+                elif estado_reactor in ("sobrecargado", "desactivado"):
+                    _agregar_toast_unico(toasts, "REACTOR EN SOBRECARGA", ahora, duracion=2.0, tipo="alerta")
+                elif esta_en_zona_extraccion(jugador_local["rect"]):
+                    # Si mantiene presionado el 5to boton dentro de la zona del Reactor, suma 40 pts por cada segundo
                     jugador_local["acum_reactor"] += dt
                     while jugador_local["acum_reactor"] >= 1.0:
                         jugador_local["acum_reactor"] -= 1.0
@@ -397,20 +461,26 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
                         jugador_local["puntos"] = jugador_local["segundos_reactor"] * 40
                 else:
                     # Toast notorio de rechazo de accion fuera de rango (CA-24.6)
-                    if not any(t.get("mensaje") == "FUERA DE RANGO DEL REACTOR" and t.get("expira", 0) > ahora for t in toasts):
-                        toasts.append({"mensaje": "FUERA DE RANGO DEL REACTOR", "expira": ahora + 2.0, "tipo": "advertencia"})
+                    _agregar_toast_unico(toasts, "FUERA DE RANGO DEL REACTOR", ahora, duracion=2.0, tipo="advertencia")
 
-            # Sincronizar posiciones/acciones de otros jugadores si el servidor TCP esta activo
+            # Sincronizar posiciones/acciones y eventos de red si el servidor TCP esta activo
             if getattr(controller, "estado_partida_red", None):
                 with controller.estado_red_lock:
-                    # Se identifica a cada jugador por su id (no por su posicion en la lista)
+                    estado_red_snap = dict(controller.estado_partida_red)
                     aplicar_estado_remoto(
                         jugadores,
-                        controller.estado_partida_red.get("jugadores", []),
+                        estado_red_snap.get("jugadores", []),
                         getattr(controller, "id_jugador_red", None),
                         controller.acciones_remotas,
                         ahora,
                         controller.obtener_nombre_color,
+                    )
+                    estado_reactor, evento_especial = sincronizar_estados_y_eventos_red(
+                        estado_red_snap,
+                        jugadores,
+                        getattr(controller, "id_jugador_red", None),
+                        toasts,
+                        ahora,
                     )
             # El rival se desliza hacia su ultima posicion en vez de saltar entre mensajes
             suavizar_remotos(jugadores, dt)

@@ -896,3 +896,30 @@ def test_dibujar_guardianes_mundo_us_24():
     # Debe dibujar sin errores a tiempo t=0.0 y t=5.0
     dibujar_guardianes_mundo(world, guardianes, ahora=0.0)
     dibujar_guardianes_mundo(world, guardianes, ahora=5.0)
+
+
+def test_sincronizar_estados_y_eventos_red():
+    """Verifica sincronizacion reactiva de reactor, eventos, congelamiento y toasts desde red."""
+    from Cliente.Interfaz.arena_view import sincronizar_estados_y_eventos_red
+
+    jugs = [
+        {"id": 1, "nombre": "Local", "es_local": True, "congelado": False},
+        {"id": 2, "nombre": "Rival", "es_local": False, "congelado": False},
+    ]
+    toasts: list[dict] = []
+    estado_red = {
+        "estado_reactor": "sobrecargado",
+        "evento_especial": {"nombre": "TORMENTA SOLAR", "activo": True},
+        "mensaje_rechazo": "REACTOR EN SOBRECARGA",
+        "jugadores": [
+            {"id": 1, "congelado": True, "trampa_activa": "gravedad"},
+            {"id": 2, "congelado": False},
+        ],
+    }
+
+    est_r, ev = sincronizar_estados_y_eventos_red(estado_red, jugs, 1, toasts, ahora=10.0)
+    assert est_r == "sobrecargado"
+    assert ev is not None and ev["nombre"] == "TORMENTA SOLAR"
+    assert jugs[0]["congelado"] is True
+    assert jugs[0]["trampa_activa"] == "gravedad"
+    assert any(t["mensaje"] == "REACTOR EN SOBRECARGA" for t in toasts)

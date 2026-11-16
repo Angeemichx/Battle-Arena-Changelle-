@@ -221,7 +221,12 @@ def dibujar_guardianes_mundo(surface: pygame.Surface, guardianes: list[dict], ah
         None: Dibuja directamente sobre 'surface'.
     """
     for g in guardianes:
-        gx, gy = int(g["x"]), int(g["y"])
+        if not isinstance(g, dict):
+            continue
+        try:
+            gx, gy = int(float(g["x"])), int(float(g["y"]))
+        except (ValueError, TypeError, KeyError):
+            continue
         # Cono o rango de escaneo en el suelo
         scan_surf = pygame.Surface((120, 120), pygame.SRCALPHA)
         pulse = 0.5 + 0.5 * math.sin(ahora * 5.0)

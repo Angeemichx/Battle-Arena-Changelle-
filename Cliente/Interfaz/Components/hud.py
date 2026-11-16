@@ -22,11 +22,16 @@ def hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
         Si la cadena limpia no tiene exactamente 6 caracteres hexadecimales, retorna
         por defecto el color rojo de seguridad (230, 57, 70).
     """
-    hex_color = hex_color.lstrip("#")
+    if not isinstance(hex_color, str):
+        return (230, 57, 70)
+    hex_color = hex_color.strip().lstrip("#")
     if len(hex_color) != 6:
         return (230, 57, 70)
     # Se extraen pares de caracteres hexadecimales en base 16 para cada canal de color
-    return tuple(int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
+    try:
+        return tuple(int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
+    except (ValueError, TypeError):
+        return (230, 57, 70)
 
 
 def dibujar_hud_lobby(
@@ -281,8 +286,13 @@ def dibujar_hud_arena(
     # Guardianes de Saymon proyectados en el radar como puntos rojos (CA-24.1)
     if guardianes:
         for g in guardianes:
-            gx = radar_rect.x + int(g.get("x", 0) * rx_scale)
-            gy = radar_rect.y + int(g.get("y", 0) * ry_scale)
+            if not isinstance(g, dict):
+                continue
+            try:
+                gx = radar_rect.x + int(float(g.get("x", 0)) * rx_scale)
+                gy = radar_rect.y + int(float(g.get("y", 0)) * ry_scale)
+            except (ValueError, TypeError):
+                continue
             if radar_rect.collidepoint(gx, gy):
                 pygame.draw.circle(surface, (230, 57, 70), (gx, gy), max(3, int(4 * sy)))
                 pygame.draw.circle(surface, (255, 120, 120), (gx, gy), max(4, int(5 * sy)), 1)

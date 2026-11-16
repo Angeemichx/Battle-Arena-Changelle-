@@ -923,3 +923,16 @@ def test_sincronizar_estados_y_eventos_red():
     assert jugs[0]["congelado"] is True
     assert jugs[0]["trampa_activa"] == "gravedad"
     assert any(t["mensaje"] == "REACTOR EN SOBRECARGA" for t in toasts)
+
+
+def test_blindaje_hex_to_rgb_y_guardianes_corruptos():
+    """Verifica que colores no hexadecimales o guardianes malformados no provoquen caidas."""
+    from Cliente.Interfaz.Components.hud import hex_to_rgb
+    from Cliente.Interfaz.arena_view import dibujar_guardianes_mundo
+
+    assert hex_to_rgb("#GGGGGG") == (230, 57, 70)
+    assert hex_to_rgb(None) == (230, 57, 70)
+    assert hex_to_rgb("#00FF00") == (0, 255, 0)
+
+    world = pygame.Surface((400, 400))
+    dibujar_guardianes_mundo(world, [{"x": "bad", "y": None}, {}, None, {"x": 100, "y": 100}], ahora=1.0)

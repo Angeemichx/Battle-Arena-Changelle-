@@ -59,7 +59,16 @@ def mensaje_felicitacion(ganador: dict) -> str:
 
 
 def formatear_duracion(segundos: float | None) -> str:
-    """Formatea una duracion en segundos como MM:SS (US-26)."""
+    """
+    Descripcion:
+        Convierte una duracion numerica en segundos a formato legible MM:SS (US-26).
+    Entradas:
+        segundos (float | None): Tiempo transcurrido en segundos o None si no se midio.
+    Salidas:
+        str: Cadena formateada 'MM:SS', o '--:--' cuando segundos es None.
+    Restricciones:
+        Valores negativos se ajustan a '00:00'.
+    """
     if segundos is None:
         return "--:--"
     total = max(0, int(segundos))
@@ -69,8 +78,16 @@ def formatear_duracion(segundos: float | None) -> str:
 
 def evaluar_record_personal(jugadores: list[dict], mejor_anterior: int = 0) -> tuple[bool, int]:
     """
-    Determina si el jugador local supero su mejor puntuacion historica registrada.
-    Retorna (es_nuevo_record, mejor_puntaje_actualizado).
+    Descripcion:
+        Compara el puntaje del jugador local contra su mejor marca historica guardada
+        para determinar si establecio un nuevo record personal (US-26).
+    Entradas:
+        jugadores (list[dict]): Lista de jugadores de la partida con claves 'es_local' y 'puntos'.
+        mejor_anterior (int): Mejor puntuacion historica registrada previamente.
+    Salidas:
+        tuple[bool, int]: Tupla (es_nuevo_record, mejor_puntaje_actualizado).
+    Restricciones:
+        Si ningun jugador tiene es_local=True, retorna (False, mejor_anterior).
     """
     mejor_prev = max(0, int(mejor_anterior or 0))
     locales = [j for j in jugadores if j.get("es_local")]
@@ -84,10 +101,15 @@ def evaluar_record_personal(jugadores: list[dict], mejor_anterior: int = 0) -> t
 
 def construir_podio(ranking: list[dict]) -> list[dict]:
     """
-    Construye la disposicion visual del podio dinamico (US-26):
-      - 1 jugador: [1ro]
-      - 2 jugadores: [2do (izq), 1ro (der)]
-      - 3+ jugadores: [2do (izq), 1ro (centro), 3ro (der)]
+    Descripcion:
+        Construye la disposicion visual del podio dinamico (US-26 / CA-26.3 / CA-26.4)
+        adaptada a la cantidad de participantes (1, 2 o 3+ jugadores).
+    Entradas:
+        ranking (list[dict]): Lista de jugadores ya ordenados de mayor a menor puesto.
+    Salidas:
+        list[dict]: Lista ordenada de izquierda a derecha con altura y colores de cada pedestal.
+    Restricciones:
+        Si ranking esta vacio, retorna una lista vacia.
     """
     if not ranking:
         return []

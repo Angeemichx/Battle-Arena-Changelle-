@@ -736,6 +736,18 @@ class AppController:
 
     # Ventana con las estadisticas del jugador (reciclable si ya fue utilizada)
     def mostrar_estadisticas(self) -> None:
+        """
+        Descripcion:
+            Abre la ventana de Estadisticas y Ranking Global. Si la instancia ya habia
+            sido creada previamente y sigue viva en memoria, la recicla refrescando sus
+            datos sin reconstruir los controles graficos.
+        Entradas:
+            Ninguna.
+        Salidas:
+            None: Oculta la ventana actual y despliega EstadisticasView.
+        Restricciones:
+            Debe ejecutarse en el hilo principal de la interfaz grafica.
+        """
         from Cliente.Interfaz.estadisticas_view import EstadisticasView
 
         if self.ventana_actual is not None:

@@ -12,8 +12,31 @@ from Cliente.Interfaz.Components.ui_helpers import (
 )
 
 
+# =============================================================================
+# Documentacion de Clase: EstadisticasView
+# Proposito:
+#   Desplegar la ventana de Ranking Global e Historial de Partidas del jugador
+#   con estetica de estacion nuclear, permitiendo reciclar la instancia visual
+#   cuando ya fue creada previamente para evitar reconstrucciones innecesarias.
+# Contenido:
+#   - Atributos principales: controller (AppController), caja_rank (CTkTextbox),
+#     caja_hist (CTkTextbox), bg_img (CTkImage), ic_bar, ic_rad, ic_perf.
+#   - Metodos: __init__, _regresar y _cargar.
+# =============================================================================
 class EstadisticasView(ctk.CTkToplevel):
     def __init__(self, controller, master=None):
+        """
+        Descripcion:
+            Inicializa la ventana de estadisticas decorada con sprites de estacion
+            nuclear, construyendo las tarjetas de Ranking Global y Mi Historial.
+        Entradas:
+            controller (AppController): Instancia del controlador maestro de la aplicacion.
+            master (ctk.CTk | None): Ventana padre que contiene el ciclo principal de Tk.
+        Salidas:
+            None: Construye y empaqueta los controles visuales de EstadisticasView.
+        Restricciones:
+            controller debe contar con auth_adapter y usuario_actual inicializados.
+        """
         super().__init__(master=master)
         self.controller = controller
 
@@ -165,7 +188,17 @@ class EstadisticasView(ctk.CTkToplevel):
         self.after(100, self._cargar)
 
     def _regresar(self) -> None:
-        """Oculta esta ventana para reciclarla y restaura la ventana anterior."""
+        """
+        Descripcion:
+            Oculta la ventana de estadisticas con withdraw() para conservarla reciclable
+            en memoria y restaura la visibilidad de la ventana padre anterior.
+        Entradas:
+            Ninguna.
+        Salidas:
+            None: Oculta EstadisticasView y reactiva la ventana de origen o el Hub.
+        Restricciones:
+            Si la ventana padre ya no existe, delega la navegacion a controller.mostrar_hub().
+        """
         try:
             self.withdraw()
         except Exception:
@@ -183,7 +216,17 @@ class EstadisticasView(ctk.CTkToplevel):
         self.controller.mostrar_hub()
 
     def _cargar(self) -> None:
-        """Carga o refresca los datos del Ranking Global y Mi Historial."""
+        """
+        Descripcion:
+            Consulta a auth_adapter el Ranking Global y el historial del usuario actual,
+            limpia los cuadros de texto previos y muestra los datos actualizados.
+        Entradas:
+            Ninguna.
+        Salidas:
+            None: Actualiza el contenido de caja_rank y caja_hist en solo lectura.
+        Restricciones:
+            auth_adapter debe responder diccionarios con la clave booleana 'ok'.
+        """
         ad = self.controller.auth_adapter
         rk = ad.obtener_ranking()
         hs = ad.obtener_historial(self.controller.usuario_actual)

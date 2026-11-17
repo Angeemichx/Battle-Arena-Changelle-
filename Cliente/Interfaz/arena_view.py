@@ -119,7 +119,21 @@ def _agregar_toast_unico(
     duracion: float = 2.0,
     tipo: str = "advertencia",
 ) -> None:
-    """Agrega un toast si no hay otro identico activo actualmente."""
+    """
+    Descripcion:
+        Inserta una notificacion emergente (toast) en la cola activa evitando duplicados
+        mientras exista otra alerta identica vigente.
+    Entradas:
+        toasts (list[dict]): Cola mutable de notificaciones activas en el HUD.
+        mensaje (str): Texto breve que se mostrara al usuario.
+        ahora (float): Marca de tiempo actual en segundos.
+        duracion (float): Tiempo de permanencia en pantalla en segundos.
+        tipo (str): Categoria visual ('advertencia' o 'alerta').
+    Salidas:
+        None: Agrega el diccionario de toast a la lista si corresponde.
+    Restricciones:
+        Ignora cadenas vacias.
+    """
     if not mensaje:
         return
     if not any(t.get("mensaje") == mensaje and t.get("expira", 0) > ahora for t in toasts):
@@ -134,8 +148,19 @@ def sincronizar_estados_y_eventos_red(
     ahora: float,
 ) -> tuple[str, dict | None]:
     """
-    Lee de forma reactiva estado del reactor, eventos especiales, congelamiento/trampas
-    y notificaciones de rechazo enviados por el servidor en estado_partida_red.
+    Descripcion:
+        Lee de forma reactiva el estado del reactor, eventos especiales, estados
+        temporales (congelado / trampa_activa) y mensajes de rechazo desde el servidor.
+    Entradas:
+        estado_red (dict | None): Ultimo diccionario de estado recibido por red TCP.
+        jugadores (list[dict]): Lista de diccionarios de jugadores locales y remotos.
+        mi_id (int | None): Identificador del jugador local asignado por el servidor.
+        toasts (list[dict]): Cola de toasts para registrar rechazos del servidor.
+        ahora (float): Marca de tiempo actual en segundos.
+    Salidas:
+        tuple[str, dict | None]: Tupla (estado_reactor, evento_especial).
+    Restricciones:
+        Si estado_red no es un diccionario, retorna ('disponible', None).
     """
     if not isinstance(estado_red, dict):
         return "disponible", None
@@ -171,8 +196,16 @@ def verificar_cierre_servidor(
     jugadores: list[dict],
 ) -> tuple[bool, dict | None, bool]:
     """
-    Evalua si el servidor confirmo el cierre oficial de la partida (CA-26.8 / CA-26.9).
-    Retorna (finalizada, ganador, nuevo_record).
+    Descripcion:
+        Evalua si el servidor confirmo el cierre oficial de la partida (CA-26.8 / CA-26.9)
+        y resuelve el ganador y la bandera de record consolidado.
+    Entradas:
+        estado_red (dict | None): Ultimo paquete de estado recibido del servidor.
+        jugadores (list[dict]): Lista actual de jugadores en la arena.
+    Salidas:
+        tuple[bool, dict | None, bool]: Tupla (finalizada, jugador_ganador, nuevo_record).
+    Restricciones:
+        Si estado_red no es un diccionario o la partida sigue activa, retorna (False, None, False).
     """
     if not isinstance(estado_red, dict):
         return False, None, False

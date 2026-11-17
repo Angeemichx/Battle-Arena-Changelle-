@@ -63,6 +63,7 @@ class HubView(ctk.CTk):
         self.btn_img_jugar = _get_ui_icon("btn_nuclear_jugar.png", size=(280, 46))
         self.btn_img_avatar = _get_ui_icon("btn_nuclear_avatar.png", size=(280, 46))
         self.btn_img_perfil = _get_ui_icon("btn_nuclear_perfil.png", size=(280, 46))
+        self.btn_img_estadisticas = _get_ui_icon("btn_nuclear_estadisticas.png", size=(280, 46))
         self.btn_img_audio = _get_ui_icon("btn_nuclear_audio.png", size=(280, 46))
         self.btn_img_salir = _get_ui_icon("btn_nuclear_salir.png", size=(280, 46))
 
@@ -186,17 +187,31 @@ class HubView(ctk.CTk):
                 command=self.controller.mostrar_perfil,
             ).pack(pady=6)
 
-        #Estadísticas y ranking
-        ctk.CTkButton(
-            self.menu_frame,
-            text="  ESTADÍSTICAS Y RANKING",
-            width=280,
-            height=42,
-            font=("Segoe UI", 13),
-            fg_color=COLOR_SECUNDARIO,
-            hover_color=COLOR_SECUNDARIO_HOVER,
-            command=self.controller.mostrar_estadisticas,
-        ).pack(pady=6)
+        # Estadisticas y ranking
+        if self.btn_img_estadisticas:
+            ctk.CTkButton(
+                self.menu_frame,
+                image=self.btn_img_estadisticas,
+                text="",
+                width=280,
+                height=46,
+                fg_color="transparent",
+                hover_color="#1F2A3E",
+                command=self.controller.mostrar_estadisticas,
+            ).pack(pady=6)
+        else:
+            ctk.CTkButton(
+                self.menu_frame,
+                text="  ESTADISTICAS Y RANKING",
+                width=280,
+                height=42,
+                font=("Segoe UI", 13, "bold"),
+                fg_color="#11151F",
+                hover_color="#1F2A3E",
+                border_width=2,
+                border_color="#9B5DE5",
+                command=self.controller.mostrar_estadisticas,
+            ).pack(pady=6)
 
         # 4. Settings (Configuracion de Audio y Alarmas)
         if self.btn_img_audio:

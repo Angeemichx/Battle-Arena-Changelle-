@@ -198,7 +198,7 @@ class ServidorJuego:
             lleno = False
             with self.lock:
                 if id_jugador not in self.partida.jugadores:
-                    if len(self.partida.jugadores) >= 2:
+                    if len(self.partida.jugadores) >= 4:
                         lleno = True
                     else:
                         self.partida.agregar_jugador(

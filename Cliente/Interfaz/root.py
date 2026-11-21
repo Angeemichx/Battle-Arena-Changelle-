@@ -137,6 +137,7 @@ class AppController:
 
         # 4. Referencia de la ventana activa (garantiza una sola ventana abierta a la vez)
         self.ventana_actual = None
+        self.ventana_estadisticas = None
 
     # ---- Configuracion de partida (US-08) --------------------------------
     def configuracion_partida(self):
@@ -602,6 +603,7 @@ class AppController:
                 print(f"[VENTANA] Error al cerrar: {e}")
 
             self.ventana_actual = None
+        self.ventana_estadisticas = None
 
     def mostrar_login(self) -> None:
         """
@@ -732,12 +734,45 @@ class AppController:
         self.ventana_actual = PerfilView(self)
         self.ventana_actual.mainloop()
 
-    # Ventana con las estadisticas del jugador
+    # Ventana con las estadisticas del jugador (reciclable si ya fue utilizada)
     def mostrar_estadisticas(self) -> None:
-        self._cerrar_ventana_actual()
+        """
+        Descripcion:
+            Abre la ventana de Estadisticas y Ranking Global. Si la instancia ya habia
+            sido creada previamente y sigue viva en memoria, la recicla refrescando sus
+            datos sin reconstruir los controles graficos.
+        Entradas:
+            Ninguna.
+        Salidas:
+            None: Oculta la ventana actual y despliega EstadisticasView.
+        Restricciones:
+            Debe ejecutarse en el hilo principal de la interfaz grafica.
+        """
         from Cliente.Interfaz.estadisticas_view import EstadisticasView
-        self.ventana_actual = EstadisticasView(self)
-        self.ventana_actual.mainloop()
+
+        if self.ventana_actual is not None:
+            try:
+                self.ventana_actual.withdraw()
+            except Exception:
+                pass
+
+        if self.ventana_estadisticas is not None:
+            try:
+                if self.ventana_estadisticas.winfo_exists():
+                    self.ventana_estadisticas._cargar()
+                    self.ventana_estadisticas.deiconify()
+                    self.ventana_estadisticas.lift()
+                    self.ventana_estadisticas.focus_force()
+                    return
+            except Exception:
+                self.ventana_estadisticas = None
+
+        self.ventana_estadisticas = EstadisticasView(self, master=self.ventana_actual)
+        self.ventana_estadisticas.deiconify()
+        self.ventana_estadisticas.lift()
+        self.ventana_estadisticas.focus_force()
+        if self.ventana_actual is None:
+            self.ventana_estadisticas.mainloop()
 
     def mostrar_settings(self, origen: str = "hub") -> None:
         """

@@ -938,6 +938,37 @@ def test_blindaje_hex_to_rgb_y_guardianes_corruptos():
     dibujar_guardianes_mundo(world, [{"x": "bad", "y": None}, {}, None, {"x": 100, "y": 100}], ahora=1.0)
 
 
+def test_estadisticas_view_recicla_ventana_y_sprites():
+    """Verifica que EstadisticasView cargue sprites y recicle la misma ventana al reabrirse."""
+    from Cliente.Interfaz.hub_view import HubView
+
+    ctrl = AppController()
+    ctrl.auth_adapter.obtener_ranking = lambda: {
+        "ok": True,
+        "ranking": [{"nombre": "Adal", "victorias": 2, "partidas": 4, "puntos": 500}],
+    }
+    ctrl.auth_adapter.obtener_historial = lambda _u: {
+        "ok": True,
+        "historial": [{"fecha": "2026-11-16T22:00:00", "resultado": "VICTORIA", "puntos": 300, "rivales": ["P2"]}],
+    }
+
+    ctrl.ventana_actual = HubView(ctrl)
+    try:
+        ctrl.mostrar_estadisticas()
+        v1 = ctrl.ventana_estadisticas
+        assert v1 is not None and v1.winfo_exists()
+        v1._regresar()
+        ctrl.mostrar_estadisticas()
+        v2 = ctrl.ventana_estadisticas
+        assert v1 is v2
+        assert "Adal" in v2.caja_rank.get("1.0", "end")
+        assert "VICTORIA" in v2.caja_hist.get("1.0", "end")
+        v2._regresar()
+    finally:
+        ctrl._cerrar_ventana_actual()
+        assert ctrl.ventana_estadisticas is None
+
+
 def test_dibujar_energia_adicional_solo_con_el_evento_correcto():
     """US-22 / CA-22.1: el icono se dibuja unicamente para el evento de energia con posicion valida."""
     import pygame

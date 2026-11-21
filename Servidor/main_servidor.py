@@ -55,6 +55,7 @@ def main():
 
     # Traduce la acción del mensaje
     def manejar(msg: dict, sesion: dict) -> dict:
+        print(f"[MANEJAR] accion={msg.get('action')!r}", flush=True)
         accion = msg.get("action")
 
         if accion == "request_code":
@@ -104,6 +105,10 @@ def main():
             except Exception as e:
                 print(f"[GITHUB] Error en oauth_start: {e!r}", flush=True)
                 return {"ok": False, "msg": "No se pudo contactar a GitHub."}
+            return {"ok": True, "user_code": d["user_code"],
+                    "verification_uri": d["verification_uri"],
+                    "device_code": d["device_code"],
+                    "interval": d.get("interval", 5)}
      
         if accion == "oauth_poll":
             if not github:

@@ -22,6 +22,18 @@ class Partida:
         self.finalizada = False
         self._desconectados = []
 
+    def nombre_en_uso(self, nombre: str, excluir_id: int | None = None) -> bool:
+        """Indica si ya existe otro jugador conectado con el mismo nombre."""
+        objetivo = str(nombre or "").strip().lower()
+        if not objetivo:
+            return False
+        for idj, j in self.jugadores.items():
+            if excluir_id is not None and idj == excluir_id:
+                continue
+            if str(j.nombre or "").strip().lower() == objetivo:
+                return True
+        return False
+
     #Agregar un jugador solo si hay espacio (pueden haber maximo 4 en partida)
     def agregar_jugador (self, jugador:Jugador):
 

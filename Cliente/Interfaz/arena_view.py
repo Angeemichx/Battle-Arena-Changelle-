@@ -39,6 +39,7 @@ from Cliente.Interfaz.Components.obstaculos import (
     actualizar_estados_puertas,
     aplicar_efecto_visual_avatar,
     detectar_trampa_activa,
+    resolver_trampa_local,
     dibujar_obstaculos_arena,
     obtener_colisiones_obstaculos,
     obtener_obstaculos_por_mapa,
@@ -507,8 +508,8 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
 
             # Deteccion de trampas activas sobre el avatar local (US-20, CA-20.5)
             trampa_local = detectar_trampa_activa(jugador_local["rect"], obstaculos_arena.get("trampas", []))
-            if trampa_local or not getattr(controller, "estado_partida_red", None):
-                jugador_local["trampa_activa"] = trampa_local
+            # Siempre se actualiza: antes, en red, el efecto se quedaba pegado al salir de la trampa
+            jugador_local["trampa_activa"] = resolver_trampa_local(jugador_local, trampa_local, ahora)
             trampa_activa_actual = jugador_local.get("trampa_activa")
 
             if jugador_local.get("congelado") or trampa_activa_actual == "jaula":

@@ -8,6 +8,8 @@ class Jugador:
         self.y = y
         self.puntaje = 0 
         self.color = color  # color hexadecimal del avatar (opcional, lo informa el cliente)
+        self.sala_x = None  # posicion relativa (0..1) dentro del lobby, solo mientras se espera
+        self.sala_y = None
 
     #Movimiento del jugador sumando dy y dx, ademas restricciones de limites de la arena 
 
@@ -25,10 +27,14 @@ class Jugador:
 
     #convertir el jugador en un diccionario para poder enviarlo como JSON
     def to_dict(self):
-        return {"id": self.id_jugador, 
-                "nombre": self.nombre, 
-                "x": self.x, 
-                "y": self.y, 
+        datos = {"id": self.id_jugador,
+                "nombre": self.nombre,
+                "x": self.x,
+                "y": self.y,
                 "puntaje": self.puntaje,
                 "color": self.color}
+        if self.sala_x is not None and self.sala_y is not None:
+            datos["sala_x"] = self.sala_x
+            datos["sala_y"] = self.sala_y
+        return datos
 

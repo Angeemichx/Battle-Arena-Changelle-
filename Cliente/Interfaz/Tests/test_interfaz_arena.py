@@ -996,3 +996,26 @@ def test_el_controlador_guarda_el_motivo_de_rechazo():
     assert app.rechazo_red[0] == "Acercate al reactor para extraer"
     app.actualizar_estado_red({"tipo": "rechazo", "mensaje": 5})                   # basura: se ignora
     assert app.rechazo_red[0] == "Acercate al reactor para extraer"
+
+
+def test_la_jaula_retiene_poco_tiempo_y_luego_libera_US_20():
+    """Una trampa no puede durar para siempre: la jaula suelta al jugador y le da inmunidad para salir."""
+    from Cliente.Interfaz.Components.obstaculos import (
+        DURACION_JAULA, INMUNIDAD_JAULA, resolver_trampa_local)
+    jug = {}
+    assert resolver_trampa_local(jug, "jaula", 100.0) == "jaula"
+    assert resolver_trampa_local(jug, "jaula", 100.0 + DURACION_JAULA - 0.1) == "jaula"
+    assert resolver_trampa_local(jug, "jaula", 100.0 + DURACION_JAULA) is None       # liberado
+    assert resolver_trampa_local(jug, "jaula", 100.0 + DURACION_JAULA + 1) is None   # inmune
+    fin_inmunidad = 100.0 + DURACION_JAULA + INMUNIDAD_JAULA
+    assert resolver_trampa_local(jug, "jaula", fin_inmunidad + 0.1) == "jaula"        # puede atraparlo otra vez
+
+
+def test_el_efecto_de_la_trampa_termina_al_salir_de_ella_US_20():
+    from Cliente.Interfaz.Components.obstaculos import resolver_trampa_local
+    jug = {}
+    assert resolver_trampa_local(jug, "charco", 1.0) == "charco"
+    assert resolver_trampa_local(jug, None, 1.1) is None
+    assert resolver_trampa_local(jug, "jaula", 2.0) == "jaula"
+    assert resolver_trampa_local(jug, None, 2.5) is None          # salir reinicia la jaula
+    assert jug["jaula_hasta"] is None

@@ -98,10 +98,11 @@ def test_color_del_rival_se_aplica_con_su_nombre():
     assert (js[1]["color"], js[1]["color_nombre"]) == ("#2A9D8F", "Verde")
 
 
-def test_color_igual_al_mio_se_ignora_para_no_repetir():
+def test_el_color_del_servidor_se_aplica_tal_cual():
+    """El servidor es quien reparte los colores; si hay repetidos, el lobby reasigna el propio."""
     js = casillas()
     aplicar_estado_remoto(js, [ANA, {**BETO, "color": "#e63946"}], 1, {}, 0)
-    assert js[1]["color"] == "#1D3557"
+    assert js[1]["color"] == "#e63946"
 
 
 @pytest.mark.parametrize("color", ["rojo", "#12", "#GGGGGG", 123, None])

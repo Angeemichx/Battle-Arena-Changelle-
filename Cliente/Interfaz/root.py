@@ -534,6 +534,24 @@ class AppController:
         except Exception:
             self.socket_cliente = None
 
+    def enviar_posicion_sala_red(self, rel_x: float, rel_y: float) -> None:
+        """
+        Descripcion:
+            Informa al servidor la posicion relativa (0..1) del jugador local dentro del lobby,
+            para que los demas lo vean moverse mientras esperan el inicio de la partida.
+        Restricciones:
+            Sin conexion TCP activa no hace nada ni lanza excepcion.
+        """
+        if self.socket_cliente is None:
+            return
+        try:
+            msg = {"tipo": "movimiento",
+                   "sala_x": max(0.0, min(1.0, float(rel_x))),
+                   "sala_y": max(0.0, min(1.0, float(rel_y)))}
+            self.socket_cliente.sendall((json.dumps(msg) + "\n").encode("utf-8"))
+        except Exception:
+            self.socket_cliente = None
+
     def enviar_accion_red(self, texto: str = "[EXTRAYENDO]", puntaje=None) -> None:
         """
         Descripcion:

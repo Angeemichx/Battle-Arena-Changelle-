@@ -20,6 +20,11 @@ def _es_coordenada(valor) -> bool:
     return isinstance(valor, int) and not isinstance(valor, bool) and -10000 <= valor <= 10000
 
 
+def _es_fraccion(valor) -> bool:
+    """Posicion relativa dentro del lobby: numero (no bool) entre 0 y 1."""
+    return isinstance(valor, (int, float)) and not isinstance(valor, bool) and 0.0 <= valor <= 1.0
+
+
 #Servidor TCP para aceptar clientes y sincronizar su estado
 
 class ServidorJuego:
@@ -199,8 +204,8 @@ class ServidorJuego:
             self._broadcast_estado(codigo_sala)
 
         elif tipo == "movimiento":
-            x = mensaje.get("x", 0)
-            y = mensaje.get("y", 0)
+            x = mensaje.get("x")
+            y = mensaje.get("y")
             with self.lock:
                 codigo_sala, partida_sala = self._sala_de(id_jugador)
                 if id_jugador in partida_sala.jugadores:
@@ -210,6 +215,12 @@ class ServidorJuego:
                     if _es_coordenada(x) and _es_coordenada(y) and not congelado:
                         jugador.x = x
                         jugador.y = y
+                    # Posicion dentro del lobby (0..1): la envian los clientes mientras esperan para
+                    # que todos vean moverse a los demas antes de iniciar la partida
+                    sala_x, sala_y = mensaje.get("sala_x"), mensaje.get("sala_y")
+                    if _es_fraccion(sala_x) and _es_fraccion(sala_y):
+                        jugador.sala_x = float(sala_x)
+                        jugador.sala_y = float(sala_y)
                     self._aplicar_datos_cliente(jugador, mensaje)
             self._broadcast_estado(codigo_sala)
 

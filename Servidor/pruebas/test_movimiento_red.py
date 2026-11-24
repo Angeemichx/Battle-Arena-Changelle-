@@ -220,6 +220,24 @@ def test_el_mapa_elegido_llega_a_todos_los_clientes(servidor):
     assert srv.partida.mapa == "Laberinto Cerrado"
 
 
+def test_la_posicion_del_lobby_llega_a_los_demas_sin_tocar_la_de_la_arena(servidor):
+    """Los clientes ven moverse a los demas en el lobby (sala_x, sala_y) y x, y no se pisan con 0."""
+    srv, a, b = dos(servidor)
+    a.enviar({"tipo": "movimiento", "x": 700, "y": 800})
+    assert esperar(lambda: b.jugador(a.id) and b.jugador(a.id)["x"] == 700)
+    a.enviar({"tipo": "movimiento", "sala_x": 0.25, "sala_y": 0.75})
+    assert esperar(lambda: b.jugador(a.id).get("sala_x") == 0.25 and b.jugador(a.id).get("sala_y") == 0.75)
+    assert b.jugador(a.id)["x"] == 700 and b.jugador(a.id)["y"] == 800
+
+
+def test_posicion_de_lobby_invalida_se_ignora(servidor):
+    srv, a, b = dos(servidor)
+    a.enviar({"tipo": "movimiento", "sala_x": 5, "sala_y": "x"})
+    a.enviar({"tipo": "movimiento", "sala_x": True, "sala_y": 0.5})
+    time.sleep(0.3)
+    assert "sala_x" not in b.jugador(a.id)
+
+
 def test_mapa_invalido_se_ignora(servidor):
     srv, a, b = dos(servidor)
     _iniciar_partida(srv, a, mapa=12345)

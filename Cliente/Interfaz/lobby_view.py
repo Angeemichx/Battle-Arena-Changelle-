@@ -245,6 +245,8 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
     alerta_rechazo_expira = 0.0
 
     velocidad_base = 5.0
+    ultimo_envio_sala = 0.0
+    ultima_pos_enviada = None
     corriendo = True
     accion_salida = None  # "menu" | "arena" | "cerrar"
     tamano_ventana_previo = screen.get_size()
@@ -322,6 +324,34 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
             alerta_rechazo_lobby = f"INGRESO RECHAZADO: {err_sala}"
             alerta_rechazo_expira = ahora + 4.0
             controller.error_conexion_sala = None
+
+        # Mover en pantalla a los demas segun la posicion de lobby que informan (sala_x, sala_y)
+        if getattr(controller, "estado_partida_red", None):
+            with controller.estado_red_lock:
+                datos_por_id = {
+                    d.get("id"): d for d in controller.estado_partida_red.get("jugadores", [])
+                    if isinstance(d, dict)
+                }
+            for jug in jugadores:
+                if jug.get("es_local"):
+                    continue
+                d = datos_por_id.get(jug.get("id"))
+                if not d:
+                    continue
+                sx_r, sy_r = d.get("sala_x"), d.get("sala_y")
+                if isinstance(sx_r, (int, float)) and isinstance(sy_r, (int, float)):
+                    if (jug["rel_x"], jug["rel_y"]) != (sx_r, sy_r):
+                        jug["rel_x"], jug["rel_y"] = float(sx_r), float(sy_r)
+                        jug["pos_x"] = None  # se recalcula con el tamano actual de la ventana
+                        jug["pos_y"] = None
+
+        # Si el creador ya inicio la partida, quienes esperan entran a la arena automaticamente
+        est_red = getattr(controller, "estado_partida_red", None)
+        if (est_red and not getattr(controller, "es_creador", False)
+                and est_red.get("activa") and not est_red.get("partida_finalizada")):
+            accion_salida = "arena"
+            corriendo = False
+            continue
 
         # Resolucion automatica de duplicados de color al unirse (CA-10.3)
         if hasattr(controller, "resolver_conflicto_color"):
@@ -476,7 +506,10 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                     indice_foco = 0
                     mensaje_modal = ""
                 elif en_zona_despegue:
-                    if puede_iniciar:
+                    if getattr(controller, "socket_cliente", None) is not None and not controller.es_creador:
+                        alerta_rechazo_lobby = "Solo el creador de la sala puede iniciar la partida. Espera a que la inicie."
+                        alerta_rechazo_expira = ahora + 4.0
+                    elif puede_iniciar:
                         controller.jugadores_sala = jugadores
                         if getattr(controller, "es_creador", False):
                             controller.enviar_configuracion_partida_red()
@@ -1083,7 +1116,10 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                     indice_foco = 0
                     mensaje_modal = ""
                 elif zona_despegue.collidepoint(pos):
-                    if puede_iniciar:
+                    if getattr(controller, "socket_cliente", None) is not None and not controller.es_creador:
+                        alerta_rechazo_lobby = "Solo el creador de la sala puede iniciar la partida. Espera a que la inicie."
+                        alerta_rechazo_expira = ahora + 4.0
+                    elif puede_iniciar:
                         controller.jugadores_sala = jugadores
                         accion_salida = "arena"
                         corriendo = False
@@ -1123,6 +1159,13 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                 alto_util = max(1, zona_caminable.height - hitbox_size)
                 jugador_local["rel_x"] = (nuevo_rect.x - zona_caminable.x) / float(ancho_util)
                 jugador_local["rel_y"] = (nuevo_rect.y - zona_caminable.y) / float(alto_util)
+
+        # Informar mi posicion en el lobby (maximo ~12 veces por segundo y solo si cambio)
+        pos_sala = (round(jugador_local["rel_x"], 3), round(jugador_local["rel_y"], 3))
+        if pos_sala != ultima_pos_enviada and ahora - ultimo_envio_sala >= 0.08:
+            controller.enviar_posicion_sala_red(*pos_sala)
+            ultima_pos_enviada = pos_sala
+            ultimo_envio_sala = ahora
 
         pygame.display.flip()
         clock.tick(60)

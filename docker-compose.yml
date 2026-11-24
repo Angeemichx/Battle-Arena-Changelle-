@@ -13,3 +13,22 @@ services:
     volumes:
       - ./Servidor/infraestructure/data:/app/data
     restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: Servidor/Dockerfile
+    command: ["python",  "app_movil.py"]
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./app_movil.py:/app/app_movil.py:ro
+      - ./Servidor/infraestructure/data:/app/Servidor/infraestructure/data:ro
+    restart: unless-stopped
+
+  tunel:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate --url http://web:8080
+    depends_on:
+      - web
+    restart: unless-stopped

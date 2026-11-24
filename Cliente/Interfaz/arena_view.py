@@ -578,6 +578,14 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
             if getattr(controller, "estado_partida_red", None):
                 with controller.estado_red_lock:
                     estado_red_snap = dict(controller.estado_partida_red)
+                # Ignorar snapshots residuales de una partida previa recien cerrada antes de iniciar la nueva
+                if estado_red_snap.get("partida_finalizada") and not estado_red_snap.get("activa") and tiempo_jugado_seg < 1.5:
+                    estado_red_snap = {}
+            else:
+                estado_red_snap = {}
+            if estado_red_snap:
+                with controller.estado_red_lock:
+                    estado_red_snap = dict(controller.estado_partida_red)
                     aplicar_estado_remoto(
                         jugadores,
                         estado_red_snap.get("jugadores", []),

@@ -575,14 +575,14 @@ class AppController:
         except Exception:
             self.socket_cliente = None
 
-    def enviar_configuracion_partida_red(self) -> None:
+    def enviar_configuracion_partida_red(self, iniciar: bool = True) -> None:
         """
         Descripcion:
             Transmite al servidor TCP la configuracion establecida por el Creador (minutos,
-            meta de puntos, modo de fin, congelamiento y mapa seleccionado) antes de arrancar
-            la arena (US-08, US-23).
+            meta de puntos, modo de fin, congelamiento y mapa seleccionado). Si iniciar=False
+            solo sincroniza en el Lobby sin activar la partida (US-08, US-23).
         Entradas:
-            Ninguna.
+            iniciar (bool): True para arrancar la partida; False para preconfigurar en Lobby.
         Salidas:
             None: Envia el paquete 'configurar_partida' si el socket esta activo.
         Restricciones:
@@ -598,6 +598,7 @@ class AppController:
                 "modo": self.modo_fin,
                 "congelamiento": int(self.tiempo_congelado_seg),
                 "mapa": str(self.mapa_seleccionado),
+                "iniciar": bool(iniciar),
             }
             paquete = json.dumps(msg) + "\n"
             self.socket_cliente.sendall(paquete.encode("utf-8"))

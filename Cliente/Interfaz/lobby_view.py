@@ -232,6 +232,7 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
     avatar_img_surface = _safe_load_avatar(getattr(controller, "avatar_imagen", None))
     mapa_cacheado = controller.mapa_seleccionado
     minimapa_base = _generar_superficie_minimapa(mapa_cacheado)
+    controller.enviar_configuracion_partida_red()  # Enviar configuracion inicial al servidor de red
 
     # Estado del modal y alertas notorias
     modal_abierto = False
@@ -278,6 +279,10 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
 
         # Sincronizar jugadores conectados desde el servidor de red si existen
         if getattr(controller, "estado_partida_red", None):
+            mapa_red = controller.estado_partida_red.get("mapa") #sincronizar mapa si el servidor lo cambio
+            if mapa_red and mapa_red != controller.mapa_seleccionado:
+                controller.mapa_seleccionado = mapa_red
+                minimapa_base = _generar_superficie_minimapa(mapa_red)
             with controller.estado_red_lock:
                 # Los demas jugadores se identifican por id (no por su posicion en la lista del servidor)
                 from Cliente.Interfaz.red_sync import otros_jugadores
@@ -473,6 +478,8 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                 elif en_zona_despegue:
                     if puede_iniciar:
                         controller.jugadores_sala = jugadores
+                        if getattr(controller, "es_creador", False):
+                            controller.enviar_configuracion_partida_red()
                         accion_salida = "arena"
                         corriendo = False
                     else:

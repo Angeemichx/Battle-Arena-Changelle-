@@ -113,12 +113,18 @@ class ServidorJuego:
             print(f"[SERVIDOR] Error con cliente {id_jugador}: {e}")
         finally:
             if aceptado:
+                termino_por_abandono = False
                 with self.lock:
                     if id_jugador in self.clientes:
                         del self.clientes[id_jugador]
+                    era_activa = self.partida.activa
                     if id_jugador in self.partida.jugadores:
-                        del self.partida.jugadores[id_jugador]
+                        self.partida.registrar_desconexion(id_jugador)
                     self.sesiones.pop(id_jugador, None)
+                    if era_activa and not self.partida.activa:
+                        self._era_activa = False
+                        termino_por_abandono = True
+                        estado_final = self.partida.estado_actual()
 
                 try:
                     socket_cliente.close()
@@ -126,6 +132,9 @@ class ServidorJuego:
                 except Exception:
                     pass
                 print(f"[SERVIDOR] Cliente {id_jugador} desconectado")
+                if termino_por_abandono:
+                    self._broadcast({"tipo": "fin_partida", "ganador": self.partida.ganador, "estado_final": estado_final})
+                    self._cerrar_partida()
                 self._broadcast_estado()
 
             else: 
@@ -291,21 +300,20 @@ class ServidorJuego:
             if self.partida.activa:
                 self._era_activa = True
                 self.partida.verificar_tiempo()
+                self._broadcast_estado()
 
-                if not self.partida.activa and self._era_activa:
-                    self._era_activa = False
+            if not self.partida.activa and self._era_activa:
+                self._era_activa = False
 
-                    #US-25 Mensaje de fin de partida a los clientes
-                    with self.lock:
-                        estado_final = self.partida.estado_actual()
-                    print(f"[SERVIDOR] Mensaje de fin de partida enviado a los usuarios")#para prueba 4
-                    self._broadcast({"tipo": "fin_partida", "ganador": self.partida.ganador, "estado_final": estado_final})
-                    print("[SERVIDOR] ¡Partida finalizada!")
+                #US-25 Mensaje de fin de partida a los clientes
+                with self.lock:
+                    estado_final = self.partida.estado_actual()
+                print(f"[SERVIDOR] Mensaje de fin de partida enviado a los usuarios")#para prueba 4
+                self._broadcast({"tipo": "fin_partida", "ganador": self.partida.ganador, "estado_final": estado_final})
+                print("[SERVIDOR] ¡Partida finalizada!")
 
-                    #función de cierre para guardar estadísticas de la partida
-                    self._cerrar_partida()
-
-                # Llamar al broadcast
+                #función de cierre para guardar estadísticas de la partida
+                self._cerrar_partida()
                 self._broadcast_estado()
                 
     def _cerrar_partida(self):

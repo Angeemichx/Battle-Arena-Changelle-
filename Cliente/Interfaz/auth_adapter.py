@@ -195,11 +195,11 @@ class ClienteAuthAdapter:
         if not cod_clean:
             return {"ok": False, "msg": "Ingrese el codigo de 6 digitos recibido en su correo."}
         if not nueva_pass or not confirm_pass:
-            return {"ok": False, "msg": "Debe ingresar y confirmar su nueva contrasena."}
+            return {"ok": False, "msg": "Debe ingresar y confirmar su nueva contraseña."}
         if nueva_pass != confirm_pass:
-            return {"ok": False, "msg": "Las contrasenas no coinciden."}
+            return {"ok": False, "msg": "Las contraseñas no coinciden."}
         if not self.validar_reglas_password(nueva_pass):
-            return {"ok": False, "msg": "Contrasena debil: requiere minimo 8 caracteres, al menos una letra y un numero."}
+            return {"ok": False, "msg": "Contraseña débil: requiere mínimo 8 caracteres, al menos una letra y un número."}
         return _pedir("reset", email=email.strip().lower(), code=cod_clean, new_password=nueva_pass)
 
     def registrar_y_verificar(
@@ -235,9 +235,9 @@ class ClienteAuthAdapter:
         if not self.validar_formato_correo(email_clean):
             return {"ok": False, "msg": "El formato del correo electronico no es valido."}
         if password != confirm_password:
-            return {"ok": False, "msg": "Las contrasenas ingresadas no coinciden."}
+            return {"ok": False, "msg": "Las contraseñas ingresadas no coinciden."}
         if not self.validar_reglas_password(password):
-            return {"ok": False, "msg": "La contrasena debe tener minimo 8 caracteres e incluir letras y numeros."}
+            return {"ok": False, "msg": "La contraseña debe tener minimo 8 caracteres e incluir letras y numeros."}
         resp = _pedir("register_confirm", email=email_clean, username=user_clean,
                       password=password, code=cod_clean)
         if resp.get("ok"):
@@ -300,7 +300,7 @@ class ClienteAuthAdapter:
             if ident_norm in alias:
                 otro = "Admin 2" if nombre == "Admin 1" else "Admin 1"
                 if password != "1234":
-                    return {"ok": False, "msg": "ACCESO RECHAZADO: Contrasena de administrador incorrecta."}
+                    return {"ok": False, "msg": "ACCESO RECHAZADO: Contraseña de administrador incorrecta."}
                 if self.verificar_usuario_en_uso(nombre, controller):
                     return {"ok": False, "msg": f"ACCESO RECHAZADO: '{nombre}' ya se encuentra conectado en otro ordenador. Seleccione {otro}."}
                 return {"ok": True, "msg": f"Acceso concedido como {nombre}.",

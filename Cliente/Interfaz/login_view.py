@@ -107,15 +107,15 @@ class LoginView(ctk.CTk):
         )
         self.txt_usuario.pack(pady=(2, 10))
 
-        # Campo Contrasena
-        ctk.CTkLabel(self.frame, text="Contrasena", font=("Segoe UI", 12)).pack(anchor="w", padx=45, pady=(4, 0))
+        # Campo Contraseña
+        ctk.CTkLabel(self.frame, text="Contraseña", font=("Segoe UI", 12)).pack(anchor="w", padx=45, pady=(4, 0))
 
         pwd_box = ctk.CTkFrame(self.frame, fg_color="transparent")
         pwd_box.pack(pady=(2, 10))
 
         self.txt_password = ctk.CTkEntry(
             pwd_box,
-            placeholder_text="Ingrese contrasena",
+            placeholder_text="Ingrese contraseña",
             show="*",
             width=260,
             height=38,
@@ -389,20 +389,20 @@ class AdminAccessView(ctk.CTk):
 
         ctk.CTkLabel(
             self.frame,
-            text="Ingrese la contrasena de administrador y seleccione el perfil disponible",
+            text="Ingrese la contraseña de administrador y seleccione el perfil disponible",
             font=("Segoe UI", 12),
             text_color="#8E9AA8",
             wraplength=340,
             justify="center",
         ).pack(pady=(0, 18))
 
-        ctk.CTkLabel(self.frame, text="Contrasena de Administrador", font=("Segoe UI", 12)).pack(
+        ctk.CTkLabel(self.frame, text="Contraseña de Administrador", font=("Segoe UI", 12)).pack(
             anchor="w", padx=45, pady=(4, 0)
         )
 
         self.txt_pwd_admin = ctk.CTkEntry(
             self.frame,
-            placeholder_text="Ingrese contrasena",
+            placeholder_text="Ingrese contraseña",
             show="*",
             width=310,
             height=40,
@@ -500,7 +500,7 @@ class AdminAccessView(ctk.CTk):
         """
         pwd = self.txt_pwd_admin.get().strip()
         if not pwd:
-            self._mostrar_rechazo("ACCESO RECHAZADO: Debe ingresar la contrasena antes de elegir el perfil Admin.")
+            self._mostrar_rechazo("ACCESO RECHAZADO: Debe ingresar la contraseña antes de elegir el perfil Admin.")
             return
 
         resultado = self.controller.auth_adapter.iniciar_sesion(

@@ -129,19 +129,5 @@ def construir_vista(ruta: str, usuario: str = "", limite_partidas: int = 10) -> 
 def ranking():
     return render_template_string(PLANTILLA, **construir_vista(RUTA_HISTORIAL, request.args.get("usuario", "")))
 
-@app.route("/jugador/<nombre>")
-def jugador(nombre):
-    hist = []
-    for p in reversed(leer()):
-        mio = next((j for j in p.get("jugadores", []) if j["nombre"].lower() == nombre.lower()), None)
-        if mio:
-            hist.append({
-                "fecha": p["fecha"][:16].replace("T", " "),
-                "puntos": mio["puntos"],
-                "resultado": "Empate" if not p.get("ganador")
-                             else "Victoria" if p["ganador"].lower() == nombre.lower() else "Derrota",
-            })
-    return render_template_string(HTML_JUGADOR, nombre=nombre, historial=hist[:30])
-
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)  # puerto 8080 para abrirlo desde el celular

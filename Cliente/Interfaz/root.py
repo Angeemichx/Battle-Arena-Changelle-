@@ -853,11 +853,12 @@ class AppController:
             Cierra previamente cualquier ventana Tkinter para evitar dos ventanas simultaneas.
         """
         self._cerrar_ventana_actual()
-        with self.estado_red_lock:
-            self.estado_partida_red = {}
-            self.rechazo_red = None
-        self.error_conexion_sala = None
-        self.conectar_servidor_tcp()
+        if self.socket_cliente is None:
+            with self.estado_red_lock:
+                self.estado_partida_red = {}
+                self.rechazo_red = None
+            self.error_conexion_sala = None
+            self.conectar_servidor_tcp()
         from Cliente.Interfaz.lobby_view import iniciar_lobby_pygame
         iniciar_lobby_pygame(self)
 

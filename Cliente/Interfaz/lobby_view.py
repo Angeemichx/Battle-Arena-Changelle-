@@ -226,6 +226,8 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
         jugadores[0]["rel_y"] = 0.78
         jugadores[0]["pos_x"] = None
         jugadores[0]["pos_y"] = None
+    for j in jugadores:
+        j["puntos"] = 0
 
     avatar_img_surface = _safe_load_avatar(getattr(controller, "avatar_imagen", None))
     mapa_cacheado = controller.mapa_seleccionado
@@ -306,9 +308,15 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                             "pos_x": None,
                             "pos_y": None,
                             "rect": pygame.Rect(0, 0, 48, 48),
-                            "puntos": datos_r.get("puntaje", 0),
+                            "puntos": 0,
                             "extrayendo": False,
                         })
+
+        err_sala = getattr(controller, "error_conexion_sala", None)
+        if err_sala:
+            alerta_rechazo_lobby = f"INGRESO RECHAZADO: {err_sala}"
+            alerta_rechazo_expira = ahora + 4.0
+            controller.error_conexion_sala = None
 
         # Resolucion automatica de duplicados de color al unirse (CA-10.3)
         if hasattr(controller, "resolver_conflicto_color"):

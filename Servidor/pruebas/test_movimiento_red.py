@@ -212,6 +212,21 @@ def test_configurar_partida_aplica_meta_y_modo(servidor):
     assert srv.partida.dinamicas.congelamiento == 7
 
 
+def test_el_mapa_elegido_llega_a_todos_los_clientes(servidor):
+    """US-23 / CA-23.4: el servidor guarda el mapa del creador y lo reenvia al invitado."""
+    srv, a, b = dos(servidor)
+    _iniciar_partida(srv, a, mapa="Laberinto Cerrado")
+    assert esperar(lambda: a.estado.get("mapa") == "Laberinto Cerrado" and b.estado.get("mapa") == "Laberinto Cerrado")
+    assert srv.partida.mapa == "Laberinto Cerrado"
+
+
+def test_mapa_invalido_se_ignora(servidor):
+    srv, a, b = dos(servidor)
+    _iniciar_partida(srv, a, mapa=12345)
+    assert srv.partida.mapa is None
+    assert "mapa" not in b.estado
+
+
 def test_al_llegar_a_la_meta_el_servidor_cierra_y_avisa(servidor):
     srv, a, b = dos(servidor)
     _iniciar_partida(srv, a, puntos=20, modo="puntos")

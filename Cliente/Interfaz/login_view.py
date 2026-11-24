@@ -2,7 +2,7 @@
 Ventana de Login (Inicio de Sesion) - US-03.
 Valida credenciales contra usuarios.json mediante ClienteAuthAdapter.
 Incluye un unico boton 'ACCESO ADMIN' que lleva a una ventana de autorizacion
-donde se solicita la contrasena (oculta) y se elige entre Admin 1 o Admin 2,
+donde se solicita la contraseña (oculta) y se elige entre Admin 1 o Admin 2,
 verificando si alguno ya esta conectado en otro ordenador.
 """
 import queue
@@ -107,15 +107,15 @@ class LoginView(ctk.CTk):
         )
         self.txt_usuario.pack(pady=(2, 10))
 
-        # Campo Contrasena
-        ctk.CTkLabel(self.frame, text="Contrasena", font=("Segoe UI", 12)).pack(anchor="w", padx=45, pady=(4, 0))
+        # Campo Contraseña
+        ctk.CTkLabel(self.frame, text="Contraseña", font=("Segoe UI", 12)).pack(anchor="w", padx=45, pady=(4, 0))
 
         pwd_box = ctk.CTkFrame(self.frame, fg_color="transparent")
         pwd_box.pack(pady=(2, 10))
 
         self.txt_password = ctk.CTkEntry(
             pwd_box,
-            placeholder_text="Ingrese contrasena",
+            placeholder_text="Ingrese contraseña",
             show="*",
             width=260,
             height=38,
@@ -283,7 +283,7 @@ class LoginView(ctk.CTk):
     def _toggle_ver(self) -> None:
         """
         Descripcion:
-            Alterna la visibilidad del campo de contrasena entre texto plano y asteriscos ('*').
+            Alterna la visibilidad del campo de contraseña entre texto plano y asteriscos ('*').
         Entradas:
             Ninguna.
         Salidas:
@@ -320,7 +320,7 @@ class LoginView(ctk.CTk):
         Salidas:
             None: Redirige al Hub o despliega un mensaje de rechazo notorio.
         Restricciones:
-            Bloquea el ingreso si el usuario no existe en usuarios.json, si la contrasena
+            Bloquea el ingreso si el usuario no existe en usuarios.json, si la contraseña
             no coincide o si la cuenta ya esta conectada en otro ordenador.
         """
         identificador = self.txt_usuario.get().strip()
@@ -341,7 +341,7 @@ class LoginView(ctk.CTk):
 # Documentacion de Clase: AdminAccessView
 # Proposito:
 #   Proporcionar una ventana independiente para el acceso rapido de pruebas como
-#   'Admin 1' o 'Admin 2', exigiendo primero digitar la contrasena oculta (sin
+#   'Admin 1' o 'Admin 2', exigiendo primero digitar la contraseña oculta (sin
 #   mostrarla jamas en pantalla) y verificando contra el servidor/sala que ningun
 #   otro ordenador este utilizando ya ese perfil de administrador.
 # Contenido:
@@ -361,7 +361,7 @@ class AdminAccessView(ctk.CTk):
         Salidas:
             None: Construye los widgets de AdminAccessView.
         Restricciones:
-            Nunca revela la contrasena esperada en etiquetas ni placeholders.
+            Nunca revela la contraseña esperada en etiquetas ni placeholders.
         """
         super().__init__()
         self.controller = controller
@@ -389,20 +389,20 @@ class AdminAccessView(ctk.CTk):
 
         ctk.CTkLabel(
             self.frame,
-            text="Ingrese la contrasena de administrador y seleccione el perfil disponible",
+            text="Ingrese la contraseña de administrador y seleccione el perfil disponible",
             font=("Segoe UI", 12),
             text_color="#8E9AA8",
             wraplength=340,
             justify="center",
         ).pack(pady=(0, 18))
 
-        ctk.CTkLabel(self.frame, text="Contrasena de Administrador", font=("Segoe UI", 12)).pack(
+        ctk.CTkLabel(self.frame, text="Contraseña de Administrador", font=("Segoe UI", 12)).pack(
             anchor="w", padx=45, pady=(4, 0)
         )
 
         self.txt_pwd_admin = ctk.CTkEntry(
             self.frame,
-            placeholder_text="Ingrese contrasena",
+            placeholder_text="Ingrese contraseña",
             show="*",
             width=310,
             height=40,
@@ -474,7 +474,7 @@ class AdminAccessView(ctk.CTk):
         """
         Descripcion:
             Despliega el recuadro de alerta roja en la ventana de administrador cuando la
-            contrasena falla o el perfil elegido ya esta ocupado en otro ordenador.
+            contraseña falla o el perfil elegido ya esta ocupado en otro ordenador.
         Entradas:
             mensaje (str): Texto descriptivo del motivo del rechazo.
         Salidas:
@@ -488,19 +488,19 @@ class AdminAccessView(ctk.CTk):
     def _intentar_ingreso_admin(self, perfil_admin: str) -> None:
         """
         Descripcion:
-            Verifica la contrasena digitada y la disponibilidad del perfil seleccionado
+            Verifica la contraseña digitada y la disponibilidad del perfil seleccionado
             ('Admin 1' o 'Admin 2'); si todo es valido, inicia sesion y abre el Hub.
         Entradas:
             perfil_admin (str): Nombre del perfil seleccionado ('Admin 1' o 'Admin 2').
         Salidas:
             None: Abre HubView o muestra el mensaje de rechazo correspondiente.
         Restricciones:
-            Exige haber ingresado la contrasena previamente y que ningun otro ordenador
+            Exige haber ingresado la contraseña previamente y que ningun otro ordenador
             este conectado con el mismo perfil Admin.
         """
         pwd = self.txt_pwd_admin.get().strip()
         if not pwd:
-            self._mostrar_rechazo("ACCESO RECHAZADO: Debe ingresar la contrasena antes de elegir el perfil Admin.")
+            self._mostrar_rechazo("ACCESO RECHAZADO: Debe ingresar la contraseña antes de elegir el perfil Admin.")
             return
 
         resultado = self.controller.auth_adapter.iniciar_sesion(

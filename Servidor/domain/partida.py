@@ -20,6 +20,19 @@ class Partida:
         self.mapa = None  # nombre del escenario elegido por el creador (US-23); None = el de cada cliente
         self.dinamicas = DinamicasPartida()  # guardianes, eventos, congelamiento y extraccion
         self.finalizada = False
+        self._desconectados = []
+
+    def nombre_en_uso(self, nombre: str, excluir_id: int | None = None) -> bool:
+        """Indica si ya existe otro jugador conectado con el mismo nombre."""
+        objetivo = str(nombre or "").strip().lower()
+        if not objetivo:
+            return False
+        for idj, j in self.jugadores.items():
+            if excluir_id is not None and idj == excluir_id:
+                continue
+            if str(j.nombre or "").strip().lower() == objetivo:
+                return True
+        return False
 
     #Agregar un jugador solo si hay espacio (pueden haber maximo 4 en partida)
     def agregar_jugador (self, jugador:Jugador):
@@ -47,6 +60,7 @@ class Partida:
         self.ganador = None
         self.finalizada = False
         self.en_tiempo_extra = False
+        self._desconectados = []
         for j in self.jugadores.values():
             j.puntaje = 0
         self.dinamicas.reiniciar(self.duracion_total, congelamiento)
@@ -121,6 +135,30 @@ class Partida:
                 # No hay empate, hay un ganador claro
                 self._declarar_ganador()
 
+    def registrar_desconexion(self, id_jugador: int):
+        """Remueve al jugador; si habia partida activa y quedan < 2, finaliza por abandono."""
+        jugador = self.jugadores.pop(id_jugador, None)
+        if jugador is not None and self.activa:
+            self._desconectados.append({"nombre": jugador.nombre, "puntos": int(jugador.puntaje)})
+            if len(self.jugadores) < 2:
+                self.finalizar_por_abandono()
+
+    def finalizar_por_abandono(self):
+        """Finaliza la partida cuando quedan menos de 2 jugadores conectados."""
+        if not self.activa:
+            return
+        if len(self.jugadores) == 1:
+            self._declarar_ganador()
+            return
+        self.activa = False
+        self.finalizada = True
+        self.dinamicas.tick(self.jugadores, False)
+        if self._desconectados and self.on_fin:
+            try:
+                self.on_fin(list(self._desconectados), int(time.time() - self.tiempo_inicio))
+            except Exception as e:
+                print(f"[STATS] Error guardando partida: {e}", flush=True)
+
     def _declarar_ganador(self):
         if not self.activa:
              return
@@ -136,10 +174,9 @@ class Partida:
         print(f"[PARTIDA] Fin del juego. Ganador: Jugador {self.ganador}")
         if self.on_fin:
             try:
-                self.on_fin(
-                    [{"nombre": j.nombre, "puntos": int(j.puntaje)} for j in jugadores_ordenados],
-                    int(time.time() - self.tiempo_inicio),
-                )
+                registro = [{"nombre": j.nombre, "puntos": int(j.puntaje)} for j in jugadores_ordenados]
+                registro.extend(self._desconectados)
+                self.on_fin(registro, int(time.time() - self.tiempo_inicio))
             except Exception as e:
                 print(f"[STATS] Error guardando partida: {e}", flush=True)
 

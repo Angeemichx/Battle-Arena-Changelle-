@@ -113,22 +113,22 @@ class SignupView(ctk.CTk):
         )
         self.txt_codigo.pack(pady=(2, 6))
 
-        # Contrasena 1
+        # Contraseña 1
         ctk.CTkLabel(
-            self.form_frame, text="Contrasena (min. 8 caracteres, letras y numeros)", font=("Segoe UI", 12)
+            self.form_frame, text="Contraseña (min. 8 caracteres, letras y numeros)", font=("Segoe UI", 12)
         ).pack(anchor="w", padx=45, pady=(2, 0))
-        self.txt_pass1 = ctk.CTkEntry(self.form_frame, placeholder_text="Contrasena", show="*", width=330, height=36)
+        self.txt_pass1 = ctk.CTkEntry(self.form_frame, placeholder_text="Contraseña", show="*", width=330, height=36)
         self.txt_pass1.pack(pady=(2, 6))
 
-        # Contrasena 2 + Boton Ver/Ocultar
-        ctk.CTkLabel(self.form_frame, text="Confirmar Contrasena", font=("Segoe UI", 12)).pack(
+        # Contraseña 2 + Boton Ver/Ocultar
+        ctk.CTkLabel(self.form_frame, text="Confirmar Contraseña", font=("Segoe UI", 12)).pack(
             anchor="w", padx=45, pady=(2, 0)
         )
         pass2_box = ctk.CTkFrame(self.form_frame, fg_color="transparent")
         pass2_box.pack(pady=(2, 6))
 
         self.txt_pass2 = ctk.CTkEntry(
-            pass2_box, placeholder_text="Repita la contrasena", show="*", width=270, height=36
+            pass2_box, placeholder_text="Repita la contraseña", show="*", width=270, height=36
         )
         self.txt_pass2.pack(side="left")
 
@@ -176,7 +176,7 @@ class SignupView(ctk.CTk):
     def _toggle_pwd(self) -> None:
         """
         Descripcion:
-            Conmuta la visualizacion de ambos campos de contrasena entre asteriscos ('*')
+            Conmuta la visualizacion de ambos campos de contraseña entre asteriscos ('*')
             y caracteres legibles.
         Entradas:
             Ninguna.
@@ -237,7 +237,7 @@ class SignupView(ctk.CTk):
         """
         Descripcion:
             Recopila todos los campos del formulario, valida el codigo de 6 digitos y las
-            reglas de contrasena, y si el registro es exitoso muestra la pantalla de
+            reglas de contraseña, y si el registro es exitoso muestra la pantalla de
             confirmacion con enlace directo al Login.
         Entradas:
             Ninguna.

@@ -1,4 +1,5 @@
 import re
+import secrets
 import socket
 import threading
 import json
@@ -34,9 +35,23 @@ class ServidorJuego:
         # Serializa los envios: dos hilos escribiendo en el mismo socket pueden mezclar mensajes
         self._envio_lock = threading.Lock()
         self.partida = Partida(id_partida="partida_1", limite_puntos=50)
+        self.salas = {"DEFAULT": self.partida}
+        self.sala_por_cliente = {}
+        self._era_activa_salas = {"DEFAULT": False}
         self.siguiente_id = 1 
         self.fin_partida = fin_partida
         self._era_activa = False
+
+    def _generar_codigo_sala(self) -> str:
+        for _ in range(20):
+            codigo = secrets.token_hex(2).upper()
+            if codigo not in self.salas and codigo != "DEFAULT":
+                return codigo
+        return f"S{int(time.time()) % 10000}"
+
+    def _sala_de(self, id_jugador: int):
+        codigo = self.sala_por_cliente.get(id_jugador, "DEFAULT")
+        return codigo, self.salas.get(codigo, self.partida)
 
     #Arrancar Servidor y quedarse escuchando conexiones
 
@@ -113,12 +128,25 @@ class ServidorJuego:
             print(f"[SERVIDOR] Error con cliente {id_jugador}: {e}")
         finally:
             if aceptado:
+                termino_por_abandono = False
+                codigo_sala = "DEFAULT"
+                estado_final = None
                 with self.lock:
+                    codigo_sala, partida_sala = self._sala_de(id_jugador)
                     if id_jugador in self.clientes:
                         del self.clientes[id_jugador]
-                    if id_jugador in self.partida.jugadores:
-                        del self.partida.jugadores[id_jugador]
+                    era_activa = partida_sala.activa
+                    if id_jugador in partida_sala.jugadores:
+                        partida_sala.registrar_desconexion(id_jugador)
                     self.sesiones.pop(id_jugador, None)
+                    self.sala_por_cliente.pop(id_jugador, None)
+                    if era_activa and not partida_sala.activa:
+                        self._era_activa_salas[codigo_sala] = False
+                        if codigo_sala == "DEFAULT":
+                            self._era_activa = False
+                        termino_por_abandono = True
+                        estado_final = partida_sala.estado_actual()
+                        estado_final["sala"] = codigo_sala
 
                 try:
                     socket_cliente.close()
@@ -126,7 +154,10 @@ class ServidorJuego:
                 except Exception:
                     pass
                 print(f"[SERVIDOR] Cliente {id_jugador} desconectado")
-                self._broadcast_estado()
+                if termino_por_abandono:
+                    self._broadcast({"tipo": "fin_partida", "ganador": partida_sala.ganador, "estado_final": estado_final}, codigo_sala=codigo_sala)
+                    self._cerrar_partida(codigo_sala)
+                self._broadcast_estado(codigo_sala)
 
             else: 
                 try:
@@ -152,7 +183,12 @@ class ServidorJuego:
             if not isinstance(minutos, (int, float)) or isinstance(minutos, bool) or not 0 < minutos <= 120:
                 minutos = 5
             with self.lock:
-                self.partida.iniciar_cronometro(
+                codigo_sala, partida_sala = self._sala_de(id_jugador)
+                if partida_sala.activa:
+                    self._enviar_a(self.clientes.get(id_jugador), {
+                        "tipo": "error", "mensaje": "La partida ya esta en curso"})
+                    return
+                partida_sala.iniciar_cronometro(
                     minutos,
                     puntos=mensaje.get("puntos"),
                     modo=mensaje.get("modo"),
@@ -160,35 +196,37 @@ class ServidorJuego:
                     mapa=mensaje.get("mapa"),
                 )
             print (f"[SERVIDOR] Partida configurada para {minutos} minutos.")
-            self._broadcast_estado()
+            self._broadcast_estado(codigo_sala)
 
         elif tipo == "movimiento":
             x = mensaje.get("x", 0)
             y = mensaje.get("y", 0)
             with self.lock:
-                if id_jugador in self.partida.jugadores:
-                    jugador = self.partida.jugadores[id_jugador]
+                codigo_sala, partida_sala = self._sala_de(id_jugador)
+                if id_jugador in partida_sala.jugadores:
+                    jugador = partida_sala.jugadores[id_jugador]
                     # Un jugador congelado no puede moverse: el servidor ignora su posicion (CA-21.8)
-                    congelado = self.partida.dinamicas.esta_congelado(id_jugador)
+                    congelado = partida_sala.dinamicas.esta_congelado(id_jugador)
                     if _es_coordenada(x) and _es_coordenada(y) and not congelado:
                         jugador.x = x
                         jugador.y = y
                     self._aplicar_datos_cliente(jugador, mensaje)
-            self._broadcast_estado()
+            self._broadcast_estado(codigo_sala)
 
         #US-18: el servidor valida la extraccion (zona, estado, partida activa) y la paga por tiempo
         elif tipo == "accion":
             with self.lock:
-                resultado = self.partida.extraer(id_jugador)
-                finalizo = self.partida.finalizada
+                codigo_sala, partida_sala = self._sala_de(id_jugador)
+                resultado = partida_sala.extraer(id_jugador)
+                finalizo = partida_sala.finalizada
             if resultado is None:
                 return
             if resultado.ok:
                 #avisar a los demas para que vean la extraccion (particulas) sin recargar
                 self._broadcast({
-                    "tipo": "accion", "jugador": id_jugador, "mensaje": "[EXTRAYENDO]"})
+                    "tipo": "accion", "jugador": id_jugador, "mensaje": "[EXTRAYENDO]"}, codigo_sala=codigo_sala)
                 if resultado.puntos or finalizo:
-                    self._broadcast_estado()
+                    self._broadcast_estado(codigo_sala)
             elif resultado.motivo:
                 #solo se le avisa a quien intento extraer, y explicando el motivo (CA-18.5)
                 self._enviar_a(self.clientes.get(id_jugador), {
@@ -196,36 +234,58 @@ class ServidorJuego:
            
         elif tipo == "identificar":
             nombre = str(mensaje.get("nombre", "")).strip()[:20]
-            lleno = False
+            color = mensaje.get("color", "#E63946")
+            crear_sala = bool(mensaje.get("crear_sala"))
+            codigo_req = str(mensaje.get("sala", "")).strip().upper()[:8]
+            error_ingreso = None
+            codigo_sala = "DEFAULT"
             with self.lock:
-                if id_jugador not in self.partida.jugadores:
-                    if len(self.partida.jugadores) >= 4:
-                        lleno = True
+                if crear_sala: #verificar a cual sala se van a unir o si se va a crear una
+                    codigo_sala = codigo_req if (codigo_req and codigo_req not in self.salas and codigo_req != "DEFAULT") else self._generar_codigo_sala()
+                    nueva = Partida(id_partida=codigo_sala, limite_puntos=self.partida.limite_puntos)
+                    nueva.on_fin = self.partida.on_fin
+                    self.salas[codigo_sala] = nueva
+                    self._era_activa_salas[codigo_sala] = False
+                    self.sala_por_cliente[id_jugador] = codigo_sala
+                    partida_sala = nueva
+                elif codigo_req:
+                    if codigo_req not in self.salas:
+                        error_ingreso = "Sala no encontrada"
+                        partida_sala = None
                     else:
-                        self.partida.agregar_jugador(
-                            Jugador(id_jugador=id_jugador, nombre=nombre or f"Jugador{id_jugador}")
-                        )
-                elif nombre:
-                    self.partida.jugadores[id_jugador].nombre = nombre
-            if lleno:
-                self._enviar_a(self.clientes.get(id_jugador), {"tipo": "error", "mensaje": "Partida llena"})
+                        codigo_sala = codigo_req
+                        self.sala_por_cliente[id_jugador] = codigo_sala
+                        partida_sala = self.salas[codigo_sala]
+                else:
+                    codigo_sala = self.sala_por_cliente.get(id_jugador, "DEFAULT")
+                    self.sala_por_cliente[id_jugador] = codigo_sala
+                    partida_sala = self.salas.get(codigo_sala, self.partida)
+
+                #agragar jugador a la sala correspondiente o actualizar su nombre si ya estaba conectado
+                if partida_sala is not None:
+                    if id_jugador not in partida_sala.jugadores:
+                        if partida_sala.activa:
+                            error_ingreso = "La partida ya esta en curso"
+                        elif len(partida_sala.jugadores) >= 4:
+                            error_ingreso = "Partida llena"
+                        elif partida_sala.nombre_en_uso(nombre, excluir_id=id_jugador):
+                            error_ingreso = "Usuario ya conectado en la sala"
+                        else:
+                            # 1. Crear jugador con su color
+                            nuevo_jugador = Jugador(id_jugador=id_jugador, nombre=nombre or f"Jugador{id_jugador}")
+                            nuevo_jugador.color = color
+                            partida_sala.agregar_jugador(nuevo_jugador)
+                    elif nombre:
+                        if partida_sala.nombre_en_uso(nombre, excluir_id=id_jugador):
+                            error_ingreso = "Usuario ya conectado en la sala"
+                        else:
+                            # 2. Actualizar jugador existente con su nuevo nombre y color
+                            partida_sala.jugadores[id_jugador].nombre = nombre
+                            partida_sala.jugadores[id_jugador].color = color
+            if error_ingreso:
+                self._enviar_a(self.clientes.get(id_jugador), {"tipo": "error", "mensaje": error_ingreso})
             else:
-                self._broadcast_estado()
-
-
-        # Manejo de peticiones de cuentas (registro, verificacion, login, etc.)
-        elif accion:
-            sesion = self.sesiones.setdefault(id_jugador, {})
-            with self.lock:
-                respuesta = self.manejar(mensaje, sesion)
-            self._enviar_a(self.clientes.get(id_jugador), respuesta)
-
-        # Manejo de peticiones de cuentas (registro, verificacion, login, etc.)
-        elif accion:
-            sesion = self.sesiones.setdefault(id_jugador, {})
-            with self.lock:
-                respuesta = self.manejar(mensaje, sesion)
-            self._enviar_a(self.clientes.get(id_jugador), respuesta)
+                self._broadcast_estado(codigo_sala)
 
     #Enviar mensaje a todos los clientes que estén conectados 
 
@@ -235,26 +295,33 @@ class ServidorJuego:
         if isinstance(color, str) and re.fullmatch(r"#[0-9A-Fa-f]{6}", color):
             jugador.color = color
 
-    def _broadcast_estado(self):
+    def _destinos_sala(self, codigo_sala: str) -> list:
+        return [
+            sock for idj, sock in self.clientes.items()
+            if self.sala_por_cliente.get(idj, "DEFAULT") == codigo_sala
+        ]
+
+    def _broadcast_estado(self, codigo_sala: str = "DEFAULT"):
         """
-        Difunde el estado actual. La foto del estado y su envio ocurren en el mismo bloque:
-        si se tomara la foto fuera de el, un estado viejo podia llegar DESPUES de uno nuevo
-        (dos jugadores moviendose a la vez) y los clientes se quedaban con la posicion vieja.
+        Difunde el estado actual de la sala indicada.
         """
         with self._envio_lock:
             with self.lock:
-                datos = (json.dumps(self.partida.estado_actual()) + "\n").encode("utf-8")
-                destinos = list(self.clientes.values())
+                partida_sala = self.salas.get(codigo_sala, self.partida)
+                estado = partida_sala.estado_actual()
+                estado["sala"] = codigo_sala
+                datos = (json.dumps(estado) + "\n").encode("utf-8")
+                destinos = self._destinos_sala(codigo_sala)
             for socket_cliente in destinos:
                 try:
                     socket_cliente.sendall(datos)
                 except Exception:
                     pass
 
-    def _broadcast(self, mensaje: dict):
+    def _broadcast(self, mensaje: dict, codigo_sala: str = "DEFAULT"):
         datos = (json.dumps(mensaje) + "\n").encode("utf-8")
         with self.lock:
-            destinos = list(self.clientes.values())
+            destinos = self._destinos_sala(codigo_sala)
         with self._envio_lock:
             for socket_cliente in destinos:
                 try:
@@ -276,47 +343,54 @@ class ServidorJuego:
         while True:
             time.sleep(1 / 15)
             try:
+                salas_activas = []
                 with self.lock:
-                    activa = self.partida.activa
-                    if activa:
-                        self.partida.tick()
-                if activa:
-                    self._broadcast_estado()
+                    for codigo, partida_sala in list(self.salas.items()):
+                        if partida_sala.activa:
+                            partida_sala.tick()
+                            salas_activas.append(codigo)
+                for codigo in salas_activas:
+                    self._broadcast_estado(codigo)
             except Exception as e:
                 print(f"[SERVIDOR] Error en dinamicas: {e}", flush=True)
 
     def _reloj_partida(self):
         while True:
             time.sleep(1) # Espera 1 segundo
-            if self.partida.activa:
-                self._era_activa = True
-                self.partida.verificar_tiempo()
+            with self.lock:
+                salas_snapshot = list(self.salas.items())
+            for codigo, partida_sala in salas_snapshot:
+                if partida_sala.activa:
+                    self._era_activa_salas[codigo] = True
+                    if codigo == "DEFAULT":
+                        self._era_activa = True
+                    partida_sala.verificar_tiempo()
+                    self._broadcast_estado(codigo)
 
-                if not self.partida.activa and self._era_activa:
-                    self._era_activa = False
+                if not partida_sala.activa and self._era_activa_salas.get(codigo, False):
+                    self._era_activa_salas[codigo] = False
+                    if codigo == "DEFAULT":
+                        self._era_activa = False
 
-                    #US-25 Mensaje de fin de partida a los clientes
                     with self.lock:
-                        estado_final = self.partida.estado_actual()
-                    print(f"[SERVIDOR] Mensaje de fin de partida enviado a los usuarios")#para prueba 4
-                    self._broadcast({"tipo": "fin_partida", "ganador": self.partida.ganador, "estado_final": estado_final})
+                        estado_final = partida_sala.estado_actual()
+                        estado_final["sala"] = codigo
+                    print(f"[SERVIDOR] Mensaje de fin de partida enviado a los usuarios ({codigo})")
+                    self._broadcast({"tipo": "fin_partida", "ganador": partida_sala.ganador, "estado_final": estado_final}, codigo_sala=codigo)
                     print("[SERVIDOR] ¡Partida finalizada!")
 
-                    #función de cierre para guardar estadísticas de la partida
-                    self._cerrar_partida()
-
-                # Llamar al broadcast
-                self._broadcast_estado()
+                    self._cerrar_partida(codigo)
+                    self._broadcast_estado(codigo)
                 
-    def _cerrar_partida(self):
+    def _cerrar_partida(self, codigo_sala: str = "DEFAULT"):
         callback = getattr(self, "fin_partida", None)
         if not callback:
             return  # las estadisticas las registra partida.on_fin (ver main_servidor)
         with self.lock:
-            #Calcular la duración restando el tiempo de inicio al actual
-            duracion_seg = int(time.time() - self.partida.tiempo_inicio) if self.partida.tiempo_inicio > 0 else 0
+            partida_sala = self.salas.get(codigo_sala, self.partida)
+            duracion_seg = int(time.time() - partida_sala.tiempo_inicio) if partida_sala.tiempo_inicio > 0 else 0
             jugadores = [{"nombre": j.nombre, "puntos": int(j.puntaje)}
-                         for j in self.partida.jugadores.values()]
+                         for j in partida_sala.jugadores.values()]
         try:
             callback(jugadores, duracion_seg)
         except Exception as e:

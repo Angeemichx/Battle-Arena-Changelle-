@@ -226,10 +226,13 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
         jugadores[0]["rel_y"] = 0.78
         jugadores[0]["pos_x"] = None
         jugadores[0]["pos_y"] = None
+    for j in jugadores:
+        j["puntos"] = 0
 
     avatar_img_surface = _safe_load_avatar(getattr(controller, "avatar_imagen", None))
     mapa_cacheado = controller.mapa_seleccionado
     minimapa_base = _generar_superficie_minimapa(mapa_cacheado)
+    controller.enviar_configuracion_partida_red()  # Enviar configuracion inicial al servidor de red
 
     # Estado del modal y alertas notorias
     modal_abierto = False
@@ -276,6 +279,10 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
 
         # Sincronizar jugadores conectados desde el servidor de red si existen
         if getattr(controller, "estado_partida_red", None):
+            mapa_red = controller.estado_partida_red.get("mapa") #sincronizar mapa si el servidor lo cambio
+            if mapa_red and mapa_red != controller.mapa_seleccionado:
+                controller.mapa_seleccionado = mapa_red
+                minimapa_base = _generar_superficie_minimapa(mapa_red)
             with controller.estado_red_lock:
                 # Los demas jugadores se identifican por id (no por su posicion en la lista del servidor)
                 from Cliente.Interfaz.red_sync import otros_jugadores
@@ -306,9 +313,15 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                             "pos_x": None,
                             "pos_y": None,
                             "rect": pygame.Rect(0, 0, 48, 48),
-                            "puntos": datos_r.get("puntaje", 0),
+                            "puntos": 0,
                             "extrayendo": False,
                         })
+
+        err_sala = getattr(controller, "error_conexion_sala", None)
+        if err_sala:
+            alerta_rechazo_lobby = f"INGRESO RECHAZADO: {err_sala}"
+            alerta_rechazo_expira = ahora + 4.0
+            controller.error_conexion_sala = None
 
         # Resolucion automatica de duplicados de color al unirse (CA-10.3)
         if hasattr(controller, "resolver_conflicto_color"):
@@ -465,6 +478,8 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                 elif en_zona_despegue:
                     if puede_iniciar:
                         controller.jugadores_sala = jugadores
+                        if getattr(controller, "es_creador", False):
+                            controller.enviar_configuracion_partida_red()
                         accion_salida = "arena"
                         corriendo = False
                     else:
@@ -627,7 +642,11 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
         )
 
         # Seccion de Jugadores adaptada para completar todo el espacio restante del panel
-        lbl_slots = font_bold.render("JUGADORES EN SALA (Min 2 / Max 4):", True, (200, 210, 225))
+        codigo_sala = str(getattr(controller, "codigo_sala", "") or "").strip()
+        titulo_sala = "JUGADORES EN SALA (Min 2 / Max 4):"
+        if codigo_sala and codigo_sala != "DEFAULT":
+            titulo_sala = f"SALA {codigo_sala} | JUGADORES (Min 2 / Max 4):"
+        lbl_slots = font_bold.render(titulo_sala, True, (200, 210, 225))
         titulo_slots_y = btn_ampliar_rect.bottom + int(14 * sy)
         screen.blit(lbl_slots, (minimapa_rect.x, titulo_slots_y))
 
@@ -1115,6 +1134,7 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
         from Cliente.Interfaz.arena_view import iniciar_arena_pygame
         iniciar_arena_pygame(controller, screen=screen)
     elif accion_salida == "menu":
+        controller.desconectar_servidor_tcp()
         pygame.display.quit()
         controller.mostrar_hub()
     else:

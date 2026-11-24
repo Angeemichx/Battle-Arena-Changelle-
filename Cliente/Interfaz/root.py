@@ -109,6 +109,8 @@ class AppController:
         self.avatar_color = "#E63946"  # Rojo por defecto
         self.avatar_imagen = None
         self.es_creador = False
+        self.codigo_sala = ""
+        self.crear_nueva_sala = False
         self.mapa_seleccionado = "Estacion Estandar"
         self.tiempo_partida_min = 3    # Duracion configurable en minutos (1, 3, 5)
         self.puntos_meta = 500         # Meta de puntos para ganar (por defecto 500 pts)
@@ -413,7 +415,12 @@ class AppController:
 
             nombre = str(getattr(self, "usuario_actual", "") or "")
             if nombre and nombre != "Piloto":
-                sock.sendall((json.dumps({"tipo": "identificar", "nombre": nombre}) + "\n").encode("utf-8"))
+                paquete_id = {"tipo": "identificar", "nombre": nombre}
+                if getattr(self, "crear_nueva_sala", False):
+                    paquete_id["crear_sala"] = True
+                elif getattr(self, "codigo_sala", ""):
+                    paquete_id["sala"] = str(self.codigo_sala).strip().upper()
+                sock.sendall((json.dumps(paquete_id) + "\n").encode("utf-8"))
 
             hilo = threading.Thread(target=self._escuchar_servidor, daemon=True)
             hilo.start()
@@ -478,6 +485,11 @@ class AppController:
                 texto = mensaje.get("mensaje")
                 if isinstance(texto, str) and texto.strip():
                     self.rechazo_red = (texto.strip(), time.time())
+            elif tipo == "error":
+                texto = mensaje.get("mensaje")
+                if isinstance(texto, str) and texto.strip():
+                    self.rechazo_red = (texto.strip(), time.time())
+                    self.error_conexion_sala = texto.strip()
             elif tipo == "accion":
                 id_j = mensaje.get("jugador")
                 if id_j is not None:
@@ -490,6 +502,9 @@ class AppController:
             mapa_remoto = mensaje.get("mapa")
             if mapa_remoto and not getattr(self, "es_creador", False):
                 self.mapa_seleccionado = str(mapa_remoto)
+            sala_remota = mensaje.get("sala")
+            if isinstance(sala_remota, str) and sala_remota.strip():
+                self.codigo_sala = sala_remota.strip().upper()
 
     def enviar_movimiento_red(self, x, y, puntaje=None, color=None):
         """
@@ -820,6 +835,10 @@ class AppController:
             Cierra previamente cualquier ventana Tkinter para evitar dos ventanas simultaneas.
         """
         self._cerrar_ventana_actual()
+        with self.estado_red_lock:
+            self.estado_partida_red = {}
+            self.rechazo_red = None
+        self.error_conexion_sala = None
         self.conectar_servidor_tcp()
         from Cliente.Interfaz.lobby_view import iniciar_lobby_pygame
         iniciar_lobby_pygame(self)
@@ -841,6 +860,28 @@ class AppController:
         from Cliente.Interfaz.arena_view import iniciar_arena_pygame
         iniciar_arena_pygame(self)
 
+    def desconectar_servidor_tcp(self) -> None:
+        """
+        Cierra la conexion TCP activa con el servidor y limpia el estado de red
+        local para evitar sesiones o partidas fantasma al volver al menu.
+        """
+        sock = getattr(self, "socket_cliente", None)
+        self.socket_cliente = None
+        if sock is not None:
+            try:
+                sock.close()
+            except Exception:
+                pass
+        with self.estado_red_lock:
+            self.id_jugador_red = None
+            self.estado_partida_red = {}
+            self.acciones_remotas = {}
+            self.rechazo_red = None
+        self.jugadores_sala = []
+        self.partida_en_curso = False
+        self.codigo_sala = ""
+        self.crear_nueva_sala = False
+
     def cerrar_aplicacion(self) -> None:
         """
         Descripcion:
@@ -854,12 +895,7 @@ class AppController:
             Ninguna.
         """
         self._cerrar_ventana_actual()
-        if self.socket_cliente is not None:
-            try:
-                self.socket_cliente.close()
-            except Exception:
-                pass
-            self.socket_cliente = None
+        self.desconectar_servidor_tcp()
         try:
             pygame.mixer.quit()
             pygame.quit()

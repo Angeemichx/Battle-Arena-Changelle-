@@ -23,6 +23,7 @@ Thumbs.db
 
 # Configuración local de partida (se genera al jugar)
 Cliente/Recursos/ultima_configuracion.json
+Cliente/Recursos/config_local.json
 # Datos del servidor 
 Servidor/infraestructure/data/*.json
 Servidor/infraestructure/data/*.tmp

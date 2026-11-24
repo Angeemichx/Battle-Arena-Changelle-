@@ -109,6 +109,8 @@ class AppController:
         self.avatar_color = "#E63946"  # Rojo por defecto
         self.avatar_imagen = None
         self.es_creador = False
+        self.codigo_sala = ""
+        self.crear_nueva_sala = False
         self.mapa_seleccionado = "Estacion Estandar"
         self.tiempo_partida_min = 3    # Duracion configurable en minutos (1, 3, 5)
         self.puntos_meta = 500         # Meta de puntos para ganar (por defecto 500 pts)
@@ -413,7 +415,12 @@ class AppController:
 
             nombre = str(getattr(self, "usuario_actual", "") or "")
             if nombre and nombre != "Piloto":
-                sock.sendall((json.dumps({"tipo": "identificar", "nombre": nombre}) + "\n").encode("utf-8"))
+                paquete_id = {"tipo": "identificar", "nombre": nombre}
+                if getattr(self, "crear_nueva_sala", False):
+                    paquete_id["crear_sala"] = True
+                elif getattr(self, "codigo_sala", ""):
+                    paquete_id["sala"] = str(self.codigo_sala).strip().upper()
+                sock.sendall((json.dumps(paquete_id) + "\n").encode("utf-8"))
 
             hilo = threading.Thread(target=self._escuchar_servidor, daemon=True)
             hilo.start()
@@ -495,6 +502,9 @@ class AppController:
             mapa_remoto = mensaje.get("mapa")
             if mapa_remoto and not getattr(self, "es_creador", False):
                 self.mapa_seleccionado = str(mapa_remoto)
+            sala_remota = mensaje.get("sala")
+            if isinstance(sala_remota, str) and sala_remota.strip():
+                self.codigo_sala = sala_remota.strip().upper()
 
     def enviar_movimiento_red(self, x, y, puntaje=None, color=None):
         """
@@ -869,6 +879,8 @@ class AppController:
             self.rechazo_red = None
         self.jugadores_sala = []
         self.partida_en_curso = False
+        self.codigo_sala = ""
+        self.crear_nueva_sala = False
 
     def cerrar_aplicacion(self) -> None:
         """

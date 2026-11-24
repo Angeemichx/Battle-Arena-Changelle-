@@ -19,13 +19,13 @@ steps:
 
   - script: |
       python -m pip install --upgrade pip
-      python -m pip install -r Servidor/requirements.txt pytest
+      python -m pip install -r Servidor/requirements.txt pytest flask
     displayName: Instalar dependencias del servidor
 
   - script: python -m pytest Servidor/pruebas/prueba_auth.py -v
     displayName: Pruebas de autenticación (servidor)
 
-  - script: python -m pytest Servidor/pruebas/test_partida.py Servidor/pruebas/test_dinamicas.py Servidor/pruebas/test_movimiento_red.py -v
+  - script: python -m pytest Servidor/pruebas/test_partida.py Servidor/pruebas/test_dinamicas.py Servidor/pruebas/test_movimiento_red.py Servidor/pruebas/test_estadisticas.py -v
     displayName: Pruebas de partida y movimiento entre jugadores (servidor)
 
   - script: |

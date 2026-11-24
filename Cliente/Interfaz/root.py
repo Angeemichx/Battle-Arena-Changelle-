@@ -841,6 +841,26 @@ class AppController:
         from Cliente.Interfaz.arena_view import iniciar_arena_pygame
         iniciar_arena_pygame(self)
 
+    def desconectar_servidor_tcp(self) -> None:
+        """
+        Cierra la conexion TCP activa con el servidor y limpia el estado de red
+        local para evitar sesiones o partidas fantasma al volver al menu.
+        """
+        sock = getattr(self, "socket_cliente", None)
+        self.socket_cliente = None
+        if sock is not None:
+            try:
+                sock.close()
+            except Exception:
+                pass
+        with self.estado_red_lock:
+            self.id_jugador_red = None
+            self.estado_partida_red = {}
+            self.acciones_remotas = {}
+            self.rechazo_red = None
+        self.jugadores_sala = []
+        self.partida_en_curso = False
+
     def cerrar_aplicacion(self) -> None:
         """
         Descripcion:
@@ -854,12 +874,7 @@ class AppController:
             Ninguna.
         """
         self._cerrar_ventana_actual()
-        if self.socket_cliente is not None:
-            try:
-                self.socket_cliente.close()
-            except Exception:
-                pass
-            self.socket_cliente = None
+        self.desconectar_servidor_tcp()
         try:
             pygame.mixer.quit()
             pygame.quit()

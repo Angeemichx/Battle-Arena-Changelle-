@@ -1067,10 +1067,9 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
                                 partida_finalizada = True
                                 jugador_ganador = otros[0]
                                 accion_salida = "victoria"
-                                corriendo = False
                             else:
-                                accion_salida = "lobby"
-                                corriendo = False
+                                accion_salida = "hub"
+                            corriendo = False
                             menu_pausa_activo = False
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 if menu_pausa_activo:
@@ -1084,10 +1083,9 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
                                     partida_finalizada = True
                                     jugador_ganador = otros[0]
                                     accion_salida = "victoria"
-                                    corriendo = False
                                 else:
-                                    accion_salida = "lobby"
-                                    corriendo = False
+                                    accion_salida = "hub"
+                                corriendo = False
                                 menu_pausa_activo = False
                             break
                 elif partida_finalizada and btn_volver_victoria_rect and btn_volver_victoria_rect.collidepoint(event.pos):
@@ -1116,6 +1114,7 @@ def iniciar_arena_pygame(controller, screen: pygame.Surface | None = None) -> No
         from Cliente.Interfaz.lobby_view import iniciar_lobby_pygame
         iniciar_lobby_pygame(controller, screen=screen)
     elif accion_salida == "hub":
+        controller.desconectar_servidor_tcp()
         pygame.display.quit()
         controller.mostrar_hub()
     else:

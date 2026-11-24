@@ -234,12 +234,13 @@ class ServidorJuego:
            
         elif tipo == "identificar":
             nombre = str(mensaje.get("nombre", "")).strip()[:20]
+            color = mensaje.get("color", "#E63946")
             crear_sala = bool(mensaje.get("crear_sala"))
             codigo_req = str(mensaje.get("sala", "")).strip().upper()[:8]
             error_ingreso = None
             codigo_sala = "DEFAULT"
             with self.lock:
-                if crear_sala:
+                if crear_sala: #verificar a cual sala se van a unir o si se va a crear una
                     codigo_sala = codigo_req if (codigo_req and codigo_req not in self.salas and codigo_req != "DEFAULT") else self._generar_codigo_sala()
                     nueva = Partida(id_partida=codigo_sala, limite_puntos=self.partida.limite_puntos)
                     nueva.on_fin = self.partida.on_fin
@@ -260,6 +261,7 @@ class ServidorJuego:
                     self.sala_por_cliente[id_jugador] = codigo_sala
                     partida_sala = self.salas.get(codigo_sala, self.partida)
 
+                #agragar jugador a la sala correspondiente o actualizar su nombre si ya estaba conectado
                 if partida_sala is not None:
                     if id_jugador not in partida_sala.jugadores:
                         if partida_sala.activa:
@@ -269,26 +271,21 @@ class ServidorJuego:
                         elif partida_sala.nombre_en_uso(nombre, excluir_id=id_jugador):
                             error_ingreso = "Usuario ya conectado en la sala"
                         else:
-                            partida_sala.agregar_jugador(
-                                Jugador(id_jugador=id_jugador, nombre=nombre or f"Jugador{id_jugador}")
-                            )
+                            # 1. Crear jugador con su color
+                            nuevo_jugador = Jugador(id_jugador=id_jugador, nombre=nombre or f"Jugador{id_jugador}")
+                            nuevo_jugador.color = color
+                            partida_sala.agregar_jugador(nuevo_jugador)
                     elif nombre:
                         if partida_sala.nombre_en_uso(nombre, excluir_id=id_jugador):
                             error_ingreso = "Usuario ya conectado en la sala"
                         else:
+                            # 2. Actualizar jugador existente con su nuevo nombre y color
                             partida_sala.jugadores[id_jugador].nombre = nombre
+                            partida_sala.jugadores[id_jugador].color = color
             if error_ingreso:
                 self._enviar_a(self.clientes.get(id_jugador), {"tipo": "error", "mensaje": error_ingreso})
             else:
                 self._broadcast_estado(codigo_sala)
-
-
-        # Manejo de peticiones de cuentas (registro, verificacion, login, etc.)
-        elif accion:
-            sesion = self.sesiones.setdefault(id_jugador, {})
-            with self.lock:
-                respuesta = self.manejar(mensaje, sesion)
-            self._enviar_a(self.clientes.get(id_jugador), respuesta)
 
     #Enviar mensaje a todos los clientes que estén conectados 
 

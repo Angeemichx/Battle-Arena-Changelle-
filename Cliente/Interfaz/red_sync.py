@@ -72,7 +72,6 @@ def aplicar_estado_remoto(
         return 0
     casillas = [j for j in jugadores_locales if not j.get("es_local")]
     remotos = [d for d in _ordenados(jugadores_servidor) if _entero(d["id"]) != mi_id]
-    usados = {str(j.get("color", "")).upper() for j in jugadores_locales}
     n = 0
     for casilla, d in zip(casillas, remotos):
         if d.get("nombre"):
@@ -88,12 +87,9 @@ def aplicar_estado_remoto(
                 casilla["rect"].topleft = (x, y)
         color = d.get("color")
         if isinstance(color, str) and _HEX.fullmatch(color):
-            propio = str(casilla.get("color", "")).upper()
-            if color.upper() == propio or color.upper() not in usados:
-                casilla["color"] = color
-                usados.add(color.upper())
-                if nombre_color:
-                    casilla["color_nombre"] = nombre_color(color)
+            casilla["color"] = color
+            if nombre_color:
+                casilla["color_nombre"] = nombre_color(color)
         casilla["extrayendo"] = acciones_remotas.get(_entero(d["id"]), 0) > ahora
         n += 1
     return n

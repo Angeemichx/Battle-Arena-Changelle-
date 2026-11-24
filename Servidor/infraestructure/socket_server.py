@@ -245,7 +245,9 @@ class ServidorJuego:
            
         elif tipo == "identificar":
             nombre = str(mensaje.get("nombre", "")).strip()[:20]
-            color = mensaje.get("color", "#E63946")
+            color = mensaje.get("color")
+            if not (isinstance(color, str) and re.fullmatch(r"#[0-9A-Fa-f]{6}", color)):
+                color = "#E63946"  # color por defecto si el cliente no manda uno valido
             crear_sala = bool(mensaje.get("crear_sala"))
             codigo_req = str(mensaje.get("sala", "")).strip().upper()[:8]
             error_ingreso = None

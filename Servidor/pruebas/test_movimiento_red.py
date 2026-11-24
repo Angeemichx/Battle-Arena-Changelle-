@@ -305,7 +305,15 @@ def test_color_invalido_se_ignora(servidor, color):
     _, a, b = dos(servidor)
     a.enviar({"tipo": "movimiento", "x": 1, "y": 1, "puntaje": 0, "color": color})
     assert esperar(lambda: b.jugador(a.id) and b.jugador(a.id)["x"] == 1)
-    assert b.jugador(a.id)["color"] is None
+    assert b.jugador(a.id)["color"] == "#E63946"   # se queda el color por defecto, nunca el invalido
+
+
+def test_color_invalido_al_identificarse_usa_el_de_defecto(servidor):
+    srv, puerto, clientes = servidor
+    c = Cliente(puerto, "Zoe")
+    clientes.append(c)
+    assert esperar(lambda: c.id and c.jugador(c.id))
+    assert c.jugador(c.id)["color"] == "#E63946"
 
 
 def test_cliente_no_identificado_no_aparece_ni_rompe(servidor):

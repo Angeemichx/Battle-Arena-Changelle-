@@ -232,7 +232,8 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
     avatar_img_surface = _safe_load_avatar(getattr(controller, "avatar_imagen", None))
     mapa_cacheado = controller.mapa_seleccionado
     minimapa_base = _generar_superficie_minimapa(mapa_cacheado)
-    controller.enviar_configuracion_partida_red()  # Enviar configuracion inicial al servidor de red
+    if getattr(controller, "es_creador", False):
+        controller.enviar_configuracion_partida_red(iniciar=False)  # Sincronizar mapa inicial sin arrancar la partida
 
     # Estado del modal y alertas notorias
     modal_abierto = False
@@ -485,9 +486,11 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                             nombre_mapa = TIPOS_MAPA[op_idx]
                             controller.mapa_seleccionado = nombre_mapa
                             minimapa_base = _generar_superficie_minimapa(nombre_mapa)
+                            controller.enviar_configuracion_partida_red(iniciar=False)
                             mensaje_modal = f"Mapa cambiado a: {nombre_mapa}"
                         else:
                             mensaje_modal = aplicar_opcion_configuracion(controller, op_idx)
+                            controller.enviar_configuracion_partida_red(iniciar=False)
                     elif pestana_modal == "musica":
                         controller.volumen_musica = 0 if controller.volumen_musica > 0 else 50
                         controller.actualizar_volumen_audio()
@@ -511,8 +514,6 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                         alerta_rechazo_expira = ahora + 4.0
                     elif puede_iniciar:
                         controller.jugadores_sala = jugadores
-                        if getattr(controller, "es_creador", False):
-                            controller.enviar_configuracion_partida_red()
                         accion_salida = "arena"
                         corriendo = False
                     else:
@@ -1088,6 +1089,7 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                                     elif controller.es_creador:
                                         controller.mapa_seleccionado = nombre_mapa
                                         minimapa_base = _generar_superficie_minimapa(nombre_mapa)
+                                        controller.enviar_configuracion_partida_red(iniciar=False)
                                         mensaje_modal = f"Mapa cambiado a: {nombre_mapa}"
                                     else:
                                         mensaje_modal = "Acceso bloqueado: Solo el creador puede cambiar el mapa."
@@ -1098,6 +1100,8 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                                 fila_foco = 1
                                 indice_foco = op_btn
                                 mensaje_modal = aplicar_opcion_configuracion(controller, op_btn)
+                                if controller.es_creador:
+                                    controller.enviar_configuracion_partida_red(iniciar=False)
 
                     elif pestana_modal == "musica":
                         if rects_modal.get("barra_vol") and rects_modal["barra_vol"].collidepoint(pos):
@@ -1180,7 +1184,7 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
     controller.jugadores_sala = jugadores
     if accion_salida == "arena":
         if getattr(controller, "es_creador", False):
-            controller.enviar_configuracion_partida_red()
+            controller.enviar_configuracion_partida_red(iniciar=True)
         from Cliente.Interfaz.arena_view import iniciar_arena_pygame
         iniciar_arena_pygame(controller, screen=screen)
     elif accion_salida == "menu":

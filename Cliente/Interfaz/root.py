@@ -478,6 +478,11 @@ class AppController:
                 texto = mensaje.get("mensaje")
                 if isinstance(texto, str) and texto.strip():
                     self.rechazo_red = (texto.strip(), time.time())
+            elif tipo == "error":
+                texto = mensaje.get("mensaje")
+                if isinstance(texto, str) and texto.strip():
+                    self.rechazo_red = (texto.strip(), time.time())
+                    self.error_conexion_sala = texto.strip()
             elif tipo == "accion":
                 id_j = mensaje.get("jugador")
                 if id_j is not None:
@@ -820,6 +825,10 @@ class AppController:
             Cierra previamente cualquier ventana Tkinter para evitar dos ventanas simultaneas.
         """
         self._cerrar_ventana_actual()
+        with self.estado_red_lock:
+            self.estado_partida_red = {}
+            self.rechazo_red = None
+        self.error_conexion_sala = None
         self.conectar_servidor_tcp()
         from Cliente.Interfaz.lobby_view import iniciar_lobby_pygame
         iniciar_lobby_pygame(self)

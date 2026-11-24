@@ -200,20 +200,30 @@ class ServidorJuego:
             minutos = mensaje.get("minutos", 5)
             if not isinstance(minutos, (int, float)) or isinstance(minutos, bool) or not 0 < minutos <= 120:
                 minutos = 5
+            iniciar = False if mensaje.get("iniciar") is False else True
             with self.lock:
                 codigo_sala, partida_sala = self._sala_de(id_jugador)
                 if partida_sala.activa:
                     self._enviar_a(self.clientes.get(id_jugador), {
                         "tipo": "error", "mensaje": "La partida ya esta en curso"})
                     return
-                partida_sala.iniciar_cronometro(
-                    minutos,
-                    puntos=mensaje.get("puntos"),
-                    modo=mensaje.get("modo"),
-                    congelamiento=_numero_o_none(mensaje.get("congelamiento")),
-                    mapa=mensaje.get("mapa"),
-                )
-            print (f"[SERVIDOR] Partida configurada para {minutos} minutos.")
+                if iniciar:
+                    partida_sala.iniciar_cronometro(
+                        minutos,
+                        puntos=mensaje.get("puntos"),
+                        modo=mensaje.get("modo"),
+                        congelamiento=_numero_o_none(mensaje.get("congelamiento")),
+                        mapa=mensaje.get("mapa"),
+                    )
+                else:
+                    partida_sala.preconfigurar(
+                        minutos,
+                        puntos=mensaje.get("puntos"),
+                        modo=mensaje.get("modo"),
+                        congelamiento=_numero_o_none(mensaje.get("congelamiento")),
+                        mapa=mensaje.get("mapa"),
+                    )
+            print (f"[SERVIDOR] Partida configurada para {minutos} minutos (iniciar={iniciar}).")
             self._broadcast_estado(codigo_sala)
 
         elif tipo == "movimiento":

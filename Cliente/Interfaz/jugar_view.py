@@ -172,7 +172,7 @@ class JugarView(ctk.CTk):
         self.txt_puerto.insert(0, str(self.controller.puerto_servidor))
         self.txt_puerto.pack(pady=3)
 
-        self.txt_codigo = ctk.CTkEntry(box_join, placeholder_text="Codigo de Sala (ej. A4F9)", width=240, height=34)
+        self.txt_codigo = ctk.CTkEntry(box_join, placeholder_text="Codigo de Sala (opcional)", width=240, height=34)
         self.txt_codigo.pack(pady=3)
 
         self.lbl_error_join = ctk.CTkLabel(box_join, text="", font=("Segoe UI", 11, "bold"), text_color="#FF858D")
@@ -227,9 +227,6 @@ class JugarView(ctk.CTk):
         self.controller.crear_nueva_sala = False
         ip = self.txt_ip.get().strip()  # vacio = se busca el servidor automaticamente
         codigo = self.txt_codigo.get().strip().upper()
-        if not codigo:
-            self.lbl_error_join.configure(text="Debe ingresar un Codigo de Sala para unirse.")
-            return
         puerto_txt = self.txt_puerto.get().strip() or "5555"
         try:
             puerto = int(puerto_txt)

@@ -161,6 +161,10 @@ class ServidorJuego:
             if not isinstance(minutos, (int, float)) or isinstance(minutos, bool) or not 0 < minutos <= 120:
                 minutos = 5
             with self.lock:
+                if self.partida.activa:
+                    self._enviar_a(self.clientes.get(id_jugador), {
+                        "tipo": "error", "mensaje": "La partida ya esta en curso"})
+                    return
                 self.partida.iniciar_cronometro(
                     minutos,
                     puntos=mensaje.get("puntos"),
@@ -205,29 +209,29 @@ class ServidorJuego:
            
         elif tipo == "identificar":
             nombre = str(mensaje.get("nombre", "")).strip()[:20]
-            lleno = False
+            error_ingreso = None
             with self.lock:
                 if id_jugador not in self.partida.jugadores:
-                    if len(self.partida.jugadores) >= 4:
-                        lleno = True
+                    if self.partida.activa:
+                        error_ingreso = "La partida ya esta en curso"
+                    elif len(self.partida.jugadores) >= 4:
+                        error_ingreso = "Partida llena"
+                    elif self.partida.nombre_en_uso(nombre, excluir_id=id_jugador):
+                        error_ingreso = "Usuario ya conectado en la sala"
                     else:
                         self.partida.agregar_jugador(
                             Jugador(id_jugador=id_jugador, nombre=nombre or f"Jugador{id_jugador}")
                         )
                 elif nombre:
-                    self.partida.jugadores[id_jugador].nombre = nombre
-            if lleno:
-                self._enviar_a(self.clientes.get(id_jugador), {"tipo": "error", "mensaje": "Partida llena"})
+                    if self.partida.nombre_en_uso(nombre, excluir_id=id_jugador):
+                        error_ingreso = "Usuario ya conectado en la sala"
+                    else:
+                        self.partida.jugadores[id_jugador].nombre = nombre
+            if error_ingreso:
+                self._enviar_a(self.clientes.get(id_jugador), {"tipo": "error", "mensaje": error_ingreso})
             else:
                 self._broadcast_estado()
 
-
-        # Manejo de peticiones de cuentas (registro, verificacion, login, etc.)
-        elif accion:
-            sesion = self.sesiones.setdefault(id_jugador, {})
-            with self.lock:
-                respuesta = self.manejar(mensaje, sesion)
-            self._enviar_a(self.clientes.get(id_jugador), respuesta)
 
         # Manejo de peticiones de cuentas (registro, verificacion, login, etc.)
         elif accion:

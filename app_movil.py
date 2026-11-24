@@ -129,6 +129,5 @@ def construir_vista(ruta: str, usuario: str = "", limite_partidas: int = 10) -> 
 def ranking():
     return render_template_string(PLANTILLA, **construir_vista(RUTA_HISTORIAL, request.args.get("usuario", "")))
 
-
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)  # puerto 8080 para abrirlo desde el celular

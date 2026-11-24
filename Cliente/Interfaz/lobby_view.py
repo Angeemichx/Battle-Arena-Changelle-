@@ -1115,6 +1115,7 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
         from Cliente.Interfaz.arena_view import iniciar_arena_pygame
         iniciar_arena_pygame(controller, screen=screen)
     elif accion_salida == "menu":
+        controller.desconectar_servidor_tcp()
         pygame.display.quit()
         controller.mostrar_hub()
     else:

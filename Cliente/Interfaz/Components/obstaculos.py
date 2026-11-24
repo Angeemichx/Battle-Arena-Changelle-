@@ -149,6 +149,38 @@ def detectar_trampa_activa(hitbox_jugador: pygame.Rect, trampas: list[dict]) -> 
     return None
 
 
+DURACION_JAULA = 3.0      # segundos que la jaula retiene al jugador
+INMUNIDAD_JAULA = 4.0     # segundos tras liberarse en los que la jaula no vuelve a atraparlo
+
+
+def resolver_trampa_local(jugador: dict, trampa_detectada: str | None, ahora: float) -> str | None:
+    """
+    Descripcion:
+        Decide que trampa afecta ahora al jugador. La jaula lo retiene solo DURACION_JAULA
+        segundos y, al liberarlo, queda inmune INMUNIDAD_JAULA segundos para que pueda salir de
+        ella; antes se quedaba atrapado para siempre. Al salir de cualquier trampa el efecto termina.
+    Entradas:
+        jugador (dict): Estado del jugador (se guardan 'jaula_hasta' y 'jaula_inmune_hasta').
+        trampa_detectada (str | None): Trampa que esta pisando ('jaula', 'gravedad', 'charco') o None.
+        ahora (float): Tiempo actual en segundos.
+    Salidas:
+        str | None: Trampa que debe aplicarse, o None si no hay efecto.
+    """
+    if trampa_detectada != "jaula":
+        jugador["jaula_hasta"] = None
+        return trampa_detectada
+    if ahora < jugador.get("jaula_inmune_hasta", 0.0):
+        return None
+    if jugador.get("jaula_hasta") is None:
+        jugador["jaula_hasta"] = ahora + DURACION_JAULA
+        return "jaula"
+    if ahora >= jugador["jaula_hasta"]:
+        jugador["jaula_hasta"] = None
+        jugador["jaula_inmune_hasta"] = ahora + INMUNIDAD_JAULA
+        return None
+    return "jaula"
+
+
 def dibujar_obstaculos_arena(surface: pygame.Surface, obstaculos: dict, tiempo_actual: float) -> None:
     """
     Descripcion:

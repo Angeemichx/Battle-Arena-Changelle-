@@ -635,7 +635,11 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
         )
 
         # Seccion de Jugadores adaptada para completar todo el espacio restante del panel
-        lbl_slots = font_bold.render("JUGADORES EN SALA (Min 2 / Max 4):", True, (200, 210, 225))
+        codigo_sala = str(getattr(controller, "codigo_sala", "") or "").strip()
+        titulo_sala = "JUGADORES EN SALA (Min 2 / Max 4):"
+        if codigo_sala and codigo_sala != "DEFAULT":
+            titulo_sala = f"SALA {codigo_sala} | JUGADORES (Min 2 / Max 4):"
+        lbl_slots = font_bold.render(titulo_sala, True, (200, 210, 225))
         titulo_slots_y = btn_ampliar_rect.bottom + int(14 * sy)
         screen.blit(lbl_slots, (minimapa_rect.x, titulo_slots_y))
 

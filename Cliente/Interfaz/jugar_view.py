@@ -172,6 +172,9 @@ class JugarView(ctk.CTk):
         self.txt_puerto.insert(0, str(self.controller.puerto_servidor))
         self.txt_puerto.pack(pady=3)
 
+        self.txt_codigo = ctk.CTkEntry(box_join, placeholder_text="Codigo de Sala (ej. A4F9)", width=240, height=34)
+        self.txt_codigo.pack(pady=3)
+
         ctk.CTkButton(
             box_join,
             text="CONECTAR A SALA",
@@ -199,6 +202,8 @@ class JugarView(ctk.CTk):
             Como Anfitrion, tendra permisos exclusivos para modificar el mapa y parametros.
         """
         self.controller.es_creador = True
+        self.controller.crear_nueva_sala = True
+        self.controller.codigo_sala = ""
         self.controller.ip_servidor = None  # el anfitrion busca el servidor automaticamente
         self.controller.ip_servidor_manual = False
         self.controller.entrar_al_lobby()
@@ -216,11 +221,13 @@ class JugarView(ctk.CTk):
             Si el puerto escrito no es un entero valido, utiliza por defecto el puerto 5555.
         """
         self.controller.es_creador = False
+        self.controller.crear_nueva_sala = False
         ip = self.txt_ip.get().strip()  # vacio = se busca el servidor automaticamente
         try:
             puerto = int(self.txt_puerto.get().strip() or "5555")
         except ValueError:
             puerto = 5555
+        self.controller.codigo_sala = self.txt_codigo.get().strip().upper()
         self.controller.ip_servidor = ip or None
         self.controller.ip_servidor_manual = bool(ip)
         self.controller.puerto_servidor = puerto

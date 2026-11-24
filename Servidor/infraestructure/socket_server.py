@@ -182,7 +182,20 @@ class ServidorJuego:
 
         tipo = mensaje.get("tipo")
         accion = mensaje.get("action")
+        
+        if accion:
+            with self.lock:
+                sesion = self.sesiones.setdefault(id_jugador, {})
+            try:
+                respuesta = self.manejar(mensaje, sesion)
+                self._enviar_a(self.clientes.get(id_jugador),respuesta)
+                print(f"[SERVIDOR] Respuesta enviada a {id_jugador}: {respuesta}",flush=True)
 
+            except Exception as e:
+                print(f"[SERVIDOR] Error procesando acción {accion}: {e!r}",flush=True)
+                self._enviar_a(self.clientes.get(id_jugador), {"ok": False, "msg": "Error interno del servidor"})
+            return
+        
         if tipo == "configurar_partida":
             minutos = mensaje.get("minutos", 5)
             if not isinstance(minutos, (int, float)) or isinstance(minutos, bool) or not 0 < minutos <= 120:

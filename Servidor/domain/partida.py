@@ -43,22 +43,29 @@ class Partida:
         self.jugadores[jugador.id_jugador] = jugador
         return True
 
-    def iniciar_cronometro(self, minutos, puntos=None, modo=None, congelamiento=None, mapa=None):
-        """
-        Arranca una partida nueva. `puntos` es la meta, `modo` la forma de terminar
-        ("tiempo", "puntos" o None = lo que ocurra primero) y `congelamiento` los segundos
-        que dura un congelamiento por guardian. Los puntajes empiezan en cero.
-        """
+    def preconfigurar(self, minutos, puntos=None, modo=None, congelamiento=None, mapa=None):
+        """Actualiza mapa y parametros desde el Lobby sin activar aun la partida."""
+        if self.activa:
+            return
         self.tiempo_limite_segundos = minutos * 60
-        self.tiempo_inicio = time.time()
         self.duracion_total = minutos * 60
         if isinstance(puntos, int) and not isinstance(puntos, bool) and puntos > 0:
             self.limite_puntos = puntos
         self.modo = modo if modo in ("tiempo", "puntos") else None
         # El mapa se guarda para que el servidor lo reenvie y todos jueguen en el mismo escenario (US-23)
         self.mapa = mapa.strip() if isinstance(mapa, str) and 0 < len(mapa.strip()) <= 40 else None
-        self.ganador = None
         self.finalizada = False
+
+    def iniciar_cronometro(self, minutos, puntos=None, modo=None, congelamiento=None, mapa=None):
+        """
+        Arranca una partida nueva. `puntos` es la meta, `modo` la forma de terminar
+        ("tiempo", "puntos" o None = lo que ocurra primero) y `congelamiento` los segundos
+        que dura un congelamiento por guardian. Los puntajes empiezan en cero.
+        """
+        self.activa = False
+        self.preconfigurar(minutos, puntos=puntos, modo=modo, congelamiento=congelamiento, mapa=mapa)
+        self.tiempo_inicio = time.time()
+        self.ganador = None
         self.en_tiempo_extra = False
         self._desconectados = []
         for j in self.jugadores.values():

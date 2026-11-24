@@ -157,6 +157,7 @@ class ServidorJuego:
                     puntos=mensaje.get("puntos"),
                     modo=mensaje.get("modo"),
                     congelamiento=_numero_o_none(mensaje.get("congelamiento")),
+                    mapa=mensaje.get("mapa"),
                 )
             print (f"[SERVIDOR] Partida configurada para {minutos} minutos.")
             self._broadcast_estado()

@@ -17,6 +17,7 @@ class Partida:
         self.on_fin = None 
         self.duracion_total = 0
         self.modo = None  # "tiempo", "puntos" o None (cualquiera de las dos condiciones)
+        self.mapa = None  # nombre del escenario elegido por el creador (US-23); None = el de cada cliente
         self.dinamicas = DinamicasPartida()  # guardianes, eventos, congelamiento y extraccion
         self.finalizada = False
 
@@ -29,7 +30,7 @@ class Partida:
         self.jugadores[jugador.id_jugador] = jugador
         return True
 
-    def iniciar_cronometro(self, minutos, puntos=None, modo=None, congelamiento=None):
+    def iniciar_cronometro(self, minutos, puntos=None, modo=None, congelamiento=None, mapa=None):
         """
         Arranca una partida nueva. `puntos` es la meta, `modo` la forma de terminar
         ("tiempo", "puntos" o None = lo que ocurra primero) y `congelamiento` los segundos
@@ -41,6 +42,8 @@ class Partida:
         if isinstance(puntos, int) and not isinstance(puntos, bool) and puntos > 0:
             self.limite_puntos = puntos
         self.modo = modo if modo in ("tiempo", "puntos") else None
+        # El mapa se guarda para que el servidor lo reenvie y todos jueguen en el mismo escenario (US-23)
+        self.mapa = mapa.strip() if isinstance(mapa, str) and 0 < len(mapa.strip()) <= 40 else None
         self.ganador = None
         self.finalizada = False
         self.en_tiempo_extra = False
@@ -165,6 +168,8 @@ class Partida:
                   "modo": self.modo,
                   "tiempo_restante": tiempo_restante, 
                   "tiempo_extra": self.en_tiempo_extra}
+          if self.mapa:
+                estado["mapa"] = self.mapa
           estado.update(self.dinamicas.estado_publico())
           return estado
     

@@ -415,7 +415,7 @@ class AppController:
 
             nombre = str(getattr(self, "usuario_actual", "") or "")
             if nombre and nombre != "Piloto":
-                paquete_id = {"tipo": "identificar", "nombre": nombre}
+                paquete_id = {"tipo": "identificar", "nombre": nombre, "color": self.avatar_color}
                 if getattr(self, "crear_nueva_sala", False):
                     paquete_id["crear_sala"] = True
                 elif getattr(self, "codigo_sala", ""):
@@ -575,14 +575,14 @@ class AppController:
         except Exception:
             self.socket_cliente = None
 
-    def enviar_configuracion_partida_red(self) -> None:
+    def enviar_configuracion_partida_red(self, iniciar: bool = True) -> None:
         """
         Descripcion:
             Transmite al servidor TCP la configuracion establecida por el Creador (minutos,
-            meta de puntos, modo de fin, congelamiento y mapa seleccionado) antes de arrancar
-            la arena (US-08, US-23).
+            meta de puntos, modo de fin, congelamiento y mapa seleccionado). Si iniciar=False
+            solo sincroniza en el Lobby sin activar la partida (US-08, US-23).
         Entradas:
-            Ninguna.
+            iniciar (bool): True para arrancar la partida; False para preconfigurar en Lobby.
         Salidas:
             None: Envia el paquete 'configurar_partida' si el socket esta activo.
         Restricciones:
@@ -598,6 +598,7 @@ class AppController:
                 "modo": self.modo_fin,
                 "congelamiento": int(self.tiempo_congelado_seg),
                 "mapa": str(self.mapa_seleccionado),
+                "iniciar": bool(iniciar),
             }
             paquete = json.dumps(msg) + "\n"
             self.socket_cliente.sendall(paquete.encode("utf-8"))
@@ -853,11 +854,12 @@ class AppController:
             Cierra previamente cualquier ventana Tkinter para evitar dos ventanas simultaneas.
         """
         self._cerrar_ventana_actual()
-        with self.estado_red_lock:
-            self.estado_partida_red = {}
-            self.rechazo_red = None
-        self.error_conexion_sala = None
-        self.conectar_servidor_tcp()
+        if self.socket_cliente is None:
+            with self.estado_red_lock:
+                self.estado_partida_red = {}
+                self.rechazo_red = None
+            self.error_conexion_sala = None
+            self.conectar_servidor_tcp()
         from Cliente.Interfaz.lobby_view import iniciar_lobby_pygame
         iniciar_lobby_pygame(self)
 

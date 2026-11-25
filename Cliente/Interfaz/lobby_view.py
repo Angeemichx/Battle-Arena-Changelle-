@@ -8,6 +8,7 @@ Vista del Lobby Caminable en Pygame (US-09, US-06 y US-08).
   3) Izquierda (Zona de Salida): Regresa al Menu Principal con Command.ACTION.
 """
 from __future__ import annotations
+import json
 import os
 import time
 import pygame
@@ -214,6 +215,17 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
             "direccion": "down",
         }
     ]
+    # Sincronizar el color local desde el servidor si ya está conectado
+    if getattr(controller, "estado_partida_red", None):
+        mi_id = getattr(controller, "id_jugador_red", None)
+        for datos_srv in controller.estado_partida_red.get("jugadores", []):
+            if datos_srv.get("id") == mi_id:
+                color_srv = datos_srv.get("color")
+                if color_srv:
+                    jugadores[0]["color"] = color_srv
+                    jugadores[0]["color_nombre"] = controller.obtener_nombre_color(color_srv)
+                    controller.avatar_color = color_srv
+                break
 
     if getattr(controller, "jugadores_sala", None) and len(controller.jugadores_sala) > 1:
         jugadores = controller.jugadores_sala
@@ -232,7 +244,8 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
     avatar_img_surface = _safe_load_avatar(getattr(controller, "avatar_imagen", None))
     mapa_cacheado = controller.mapa_seleccionado
     minimapa_base = _generar_superficie_minimapa(mapa_cacheado)
-    controller.enviar_configuracion_partida_red()  # Enviar configuracion inicial al servidor de red
+    if getattr(controller, "es_creador", False):
+        controller.enviar_configuracion_partida_red(iniciar=False)  # Sincronizar mapa inicial sin arrancar la partida
 
     # Estado del modal y alertas notorias
     modal_abierto = False
@@ -466,7 +479,12 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                 elif fila_foco == 1:
                     if pestana_modal == "colores":
                         nom_c, hex_c = lista_colores[indice_foco % len(lista_colores)]
-                        ocupado_por = colores_ocupados_otros.get(hex_c)
+                        ocupado_por = None
+                        for j in jugadores:
+                            if not j["es_local"] and j["color"].upper() == hex_c.upper():
+                                ocupado_por = j["nombre"]
+                                break
+
                         if ocupado_por:
                             mensaje_modal = f"RECHAZADO: El color {nom_c} ya esta ocupado por {ocupado_por}."
                         else:
@@ -474,6 +492,14 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                             jugador_local["color"] = hex_c
                             jugador_local["color_nombre"] = nom_c
                             controller.guardar_config_local()
+
+                            if controller.socket_cliente:
+                                try:
+                                    paquete = json.dumps({"tipo": "identificar","nombre": controller.usuario_actual, "color": hex_c, "sala": controller.codigo_sala}) + "\n"
+                                    controller.socket_cliente.sendall(paquete.encode("utf-8"))
+                                except Exception:
+                                    pass
+
                             mensaje_modal = f"Color seleccionado: {nom_c}."
                     elif pestana_modal == "mapas":
                         op_idx = indice_foco % NUM_OPCIONES_MAPAS
@@ -485,9 +511,11 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                             nombre_mapa = TIPOS_MAPA[op_idx]
                             controller.mapa_seleccionado = nombre_mapa
                             minimapa_base = _generar_superficie_minimapa(nombre_mapa)
+                            controller.enviar_configuracion_partida_red(iniciar=False)
                             mensaje_modal = f"Mapa cambiado a: {nombre_mapa}"
                         else:
                             mensaje_modal = aplicar_opcion_configuracion(controller, op_idx)
+                            controller.enviar_configuracion_partida_red(iniciar=False)
                     elif pestana_modal == "musica":
                         controller.volumen_musica = 0 if controller.volumen_musica > 0 else 50
                         controller.actualizar_volumen_audio()
@@ -511,8 +539,6 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                         alerta_rechazo_expira = ahora + 4.0
                     elif puede_iniciar:
                         controller.jugadores_sala = jugadores
-                        if getattr(controller, "es_creador", False):
-                            controller.enviar_configuracion_partida_red()
                         accion_salida = "arena"
                         corriendo = False
                     else:
@@ -676,10 +702,17 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
 
         # Seccion de Jugadores adaptada para completar todo el espacio restante del panel
         codigo_sala = str(getattr(controller, "codigo_sala", "") or "").strip()
-        titulo_sala = "JUGADORES EN SALA (Min 2 / Max 4):"
-        if codigo_sala and codigo_sala != "DEFAULT":
-            titulo_sala = f"SALA {codigo_sala} | JUGADORES (Min 2 / Max 4):"
-        lbl_slots = font_bold.render(titulo_sala, True, (200, 210, 225))
+        conectado_red = getattr(controller, "socket_cliente", None) is not None
+        if not conectado_red:
+            titulo_sala = "SIN SERVIDOR | JUGADORES (Min 2 / Max 4):"
+            color_titulo_sala = (230, 120, 120)
+        elif codigo_sala and codigo_sala != "DEFAULT":
+            titulo_sala = f"CODIGO SALA: {codigo_sala} | JUGADORES (Min 2 / Max 4):"
+            color_titulo_sala = (233, 196, 106)
+        else:
+            titulo_sala = "SALA GENERAL | JUGADORES (Min 2 / Max 4):"
+            color_titulo_sala = (200, 210, 225)
+        lbl_slots = font_bold.render(titulo_sala, True, color_titulo_sala)
         titulo_slots_y = btn_ampliar_rect.bottom + int(14 * sy)
         screen.blit(lbl_slots, (minimapa_rect.x, titulo_slots_y))
 
@@ -1055,10 +1088,15 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                         for nombre_c, _ in lista_colores:
                             info_c = rects_modal.get(f"color_{nombre_c}")
                             if info_c:
-                                c_rect, nom_c, hex_c, ocupado_por, idx_c = info_c
+                                c_rect, nom_c, hex_c, _, idx_c = info_c
                                 if c_rect.collidepoint(pos):
                                     fila_foco = 1
                                     indice_foco = idx_c
+                                    ocupado_por = None
+                                    for j in jugadores:
+                                        if not j["es_local"] and j["color"].upper() == hex_c.upper():
+                                            ocupado_por = j["nombre"]
+                                            break
                                     if ocupado_por:
                                         mensaje_modal = f"RECHAZADO: El color {nom_c} ya esta ocupado por {ocupado_por}."
                                     else:
@@ -1066,6 +1104,12 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                                         jugador_local["color"] = hex_c
                                         jugador_local["color_nombre"] = nom_c
                                         controller.guardar_config_local()
+                                        if controller.socket_cliente:
+                                            try:
+                                                paquete = json.dumps({"tipo": "identificar","nombre": controller.usuario_actual, "color": hex_c, "sala": controller.codigo_sala}) + "\n"
+                                                controller.socket_cliente.sendall(paquete.encode("utf-8"))
+                                            except Exception:
+                                                pass
                                         mensaje_modal = f"Color actualizado a {nom_c}."
 
                     elif pestana_modal == "mapas":
@@ -1081,6 +1125,7 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                                     elif controller.es_creador:
                                         controller.mapa_seleccionado = nombre_mapa
                                         minimapa_base = _generar_superficie_minimapa(nombre_mapa)
+                                        controller.enviar_configuracion_partida_red(iniciar=False)
                                         mensaje_modal = f"Mapa cambiado a: {nombre_mapa}"
                                     else:
                                         mensaje_modal = "Acceso bloqueado: Solo el creador puede cambiar el mapa."
@@ -1091,6 +1136,8 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                                 fila_foco = 1
                                 indice_foco = op_btn
                                 mensaje_modal = aplicar_opcion_configuracion(controller, op_btn)
+                                if controller.es_creador:
+                                    controller.enviar_configuracion_partida_red(iniciar=False)
 
                     elif pestana_modal == "musica":
                         if rects_modal.get("barra_vol") and rects_modal["barra_vol"].collidepoint(pos):
@@ -1173,7 +1220,7 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
     controller.jugadores_sala = jugadores
     if accion_salida == "arena":
         if getattr(controller, "es_creador", False):
-            controller.enviar_configuracion_partida_red()
+            controller.enviar_configuracion_partida_red(iniciar=True)
         from Cliente.Interfaz.arena_view import iniciar_arena_pygame
         iniciar_arena_pygame(controller, screen=screen)
     elif accion_salida == "menu":

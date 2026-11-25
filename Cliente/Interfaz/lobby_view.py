@@ -8,6 +8,7 @@ Vista del Lobby Caminable en Pygame (US-09, US-06 y US-08).
   3) Izquierda (Zona de Salida): Regresa al Menu Principal con Command.ACTION.
 """
 from __future__ import annotations
+import json
 import os
 import time
 import pygame
@@ -214,6 +215,17 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
             "direccion": "down",
         }
     ]
+    # Sincronizar el color local desde el servidor si ya está conectado
+    if getattr(controller, "estado_partida_red", None):
+        mi_id = getattr(controller, "id_jugador_red", None)
+        for datos_srv in controller.estado_partida_red.get("jugadores", []):
+            if datos_srv.get("id") == mi_id:
+                color_srv = datos_srv.get("color")
+                if color_srv:
+                    jugadores[0]["color"] = color_srv
+                    jugadores[0]["color_nombre"] = controller.obtener_nombre_color(color_srv)
+                    controller.avatar_color = color_srv
+                break
 
     if getattr(controller, "jugadores_sala", None) and len(controller.jugadores_sala) > 1:
         jugadores = controller.jugadores_sala
@@ -467,7 +479,12 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                 elif fila_foco == 1:
                     if pestana_modal == "colores":
                         nom_c, hex_c = lista_colores[indice_foco % len(lista_colores)]
-                        ocupado_por = colores_ocupados_otros.get(hex_c)
+                        ocupado_por = None
+                        for j in jugadores:
+                            if not j["es_local"] and j["color"].upper() == hex_c.upper():
+                                ocupado_por = j["nombre"]
+                                break
+
                         if ocupado_por:
                             mensaje_modal = f"RECHAZADO: El color {nom_c} ya esta ocupado por {ocupado_por}."
                         else:
@@ -475,6 +492,14 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                             jugador_local["color"] = hex_c
                             jugador_local["color_nombre"] = nom_c
                             controller.guardar_config_local()
+
+                            if controller.socket_cliente:
+                                try:
+                                    paquete = json.dumps({"tipo": "identificar","nombre": controller.usuario_actual, "color": hex_c, "sala": controller.codigo_sala}) + "\n"
+                                    controller.socket_cliente.sendall(paquete.encode("utf-8"))
+                                except Exception:
+                                    pass
+
                             mensaje_modal = f"Color seleccionado: {nom_c}."
                     elif pestana_modal == "mapas":
                         op_idx = indice_foco % NUM_OPCIONES_MAPAS
@@ -1063,10 +1088,15 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                         for nombre_c, _ in lista_colores:
                             info_c = rects_modal.get(f"color_{nombre_c}")
                             if info_c:
-                                c_rect, nom_c, hex_c, ocupado_por, idx_c = info_c
+                                c_rect, nom_c, hex_c, _, idx_c = info_c
                                 if c_rect.collidepoint(pos):
                                     fila_foco = 1
                                     indice_foco = idx_c
+                                    ocupado_por = None
+                                    for j in jugadores:
+                                        if not j["es_local"] and j["color"].upper() == hex_c.upper():
+                                            ocupado_por = j["nombre"]
+                                            break
                                     if ocupado_por:
                                         mensaje_modal = f"RECHAZADO: El color {nom_c} ya esta ocupado por {ocupado_por}."
                                     else:
@@ -1074,6 +1104,12 @@ def iniciar_lobby_pygame(controller, screen: pygame.Surface | None = None) -> No
                                         jugador_local["color"] = hex_c
                                         jugador_local["color_nombre"] = nom_c
                                         controller.guardar_config_local()
+                                        if controller.socket_cliente:
+                                            try:
+                                                paquete = json.dumps({"tipo": "identificar","nombre": controller.usuario_actual, "color": hex_c, "sala": controller.codigo_sala}) + "\n"
+                                                controller.socket_cliente.sendall(paquete.encode("utf-8"))
+                                            except Exception:
+                                                pass
                                         mensaje_modal = f"Color actualizado a {nom_c}."
 
                     elif pestana_modal == "mapas":

@@ -415,7 +415,7 @@ class AppController:
 
             nombre = str(getattr(self, "usuario_actual", "") or "")
             if nombre and nombre != "Piloto":
-                paquete_id = {"tipo": "identificar", "nombre": nombre}
+                paquete_id = {"tipo": "identificar", "nombre": nombre, "color": self.avatar_color}
                 if getattr(self, "crear_nueva_sala", False):
                     paquete_id["crear_sala"] = True
                 elif getattr(self, "codigo_sala", ""):
